@@ -59,6 +59,10 @@ export async function saveProject(project: StoredProject): Promise<void> {
   await database.projects.put(project);
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  await database.projects.delete(projectId);
+}
+
 export async function saveActiveProjectId(projectId: string): Promise<void> {
   await database.appState.put({
     id: "workspace",

@@ -37,9 +37,10 @@ not committed as valid revisions. A compile, review, timeout, or structured-resp
 the loop and restores the most recent valid source and preview. Observations and unresolved
 uncertainties are shown in chat.
 
-The successfully compiled model is announced immediately while visual review continues. Review is
-limited to 45 seconds so a slow provider cannot leave the chat pending indefinitely; a timeout
-keeps the latest valid model and preview available.
+The source-generation response includes an AI-written chat message, so useful feedback appears
+before visual review finishes. Review is limited to 120 seconds so a stalled provider cannot leave
+the chat pending indefinitely; a timeout keeps the latest valid model, preview, and initial
+AI-written message available.
 
 Visual evidence can reveal obvious placement and geometry problems, but it cannot prove exact
 dimensional fit, manifoldness, manufacturing tolerance, or print success. Those remain explicit

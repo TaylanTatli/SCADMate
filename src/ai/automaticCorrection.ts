@@ -2,7 +2,7 @@ import type { RenderLog, RenderStatus } from "../types";
 import type { RenderedView, VisualReviewResult } from "./skills";
 
 export const MAX_AUTOMATIC_CORRECTIONS = 2;
-export const DEFAULT_VISUAL_REVIEW_TIMEOUT_MS = 45_000;
+export const DEFAULT_VISUAL_REVIEW_TIMEOUT_MS = 120_000;
 
 export interface RenderEvidence {
   ok: boolean;

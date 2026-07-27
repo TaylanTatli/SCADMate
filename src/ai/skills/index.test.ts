@@ -32,7 +32,7 @@ describe("OpenSCAD skill selection and prompt assembly", () => {
     );
     expect(prompt.userPrompt).not.toContain("LATEST RELEVANT OPENSCAD LOGS");
     expect(prompt.systemPrompt).toContain(
-      "Return only the complete updated OpenSCAD source",
+      '"source":"complete updated OpenSCAD source"',
     );
     expect(prompt.systemPrompt).toContain("Use Turkish");
   });

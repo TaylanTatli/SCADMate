@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Plus,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
 import type { ChatMessage, ProjectSummary } from "../types";
@@ -23,6 +24,7 @@ interface ChatPanelProps {
   onNewProject: () => void;
   onSend: (request: string) => void;
   onSelectProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -36,6 +38,7 @@ export function ChatPanel({
   onNewProject,
   onSend,
   onSelectProject,
+  onDeleteProject,
   onOpenSettings,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
@@ -84,25 +87,35 @@ export function ChatPanel({
         {showHistory ? (
           <div className="conversation-list">
             {projects.map((project) => (
-              <button
-                key={project.id}
-                className={`conversation-item ${
-                  project.id === activeProjectId ? "active" : ""
-                }`}
-                onClick={() => onSelectProject(project.id)}
-                disabled={isGenerating}
-              >
-                <MessageSquare size={15} />
-                <span>
-                  <strong>{project.name}</strong>
-                  <small>
-                    {new Intl.DateTimeFormat(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(project.updatedAt)}
-                  </small>
-                </span>
-              </button>
+              <div className="conversation-item-row" key={project.id}>
+                <button
+                  className={`conversation-item ${
+                    project.id === activeProjectId ? "active" : ""
+                  }`}
+                  onClick={() => onSelectProject(project.id)}
+                  disabled={isGenerating}
+                >
+                  <MessageSquare size={15} />
+                  <span>
+                    <strong>{project.name}</strong>
+                    <small>
+                      {new Intl.DateTimeFormat(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(project.updatedAt)}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  className="conversation-delete"
+                  onClick={() => onDeleteProject(project.id)}
+                  disabled={isGenerating}
+                  aria-label={`Delete ${project.name}`}
+                  title="Delete conversation"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         ) : messages.length === 0 ? (

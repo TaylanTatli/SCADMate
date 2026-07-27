@@ -178,9 +178,9 @@ button:disabled {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: var(--left-width) 5px minmax(320px, 1fr) 5px var(
-      --right-width
-    );
+  grid-template-columns:
+    minmax(300px, var(--left-width)) 5px minmax(320px, 1fr) 5px
+    minmax(320px, var(--right-width));
   min-width: 0;
   min-height: 0;
   padding: 7px 8px;
@@ -298,18 +298,16 @@ button:disabled {
 .chat-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  container-name: chat;
-  container-type: inline-size;
 }
 
 .chat-panel > .panel-heading {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   align-content: center;
-  flex-wrap: wrap;
   gap: 8px;
   height: auto;
   min-height: 66px;
   padding: 10px 16px;
-  padding: clamp(10px, 3cqi, 16px);
 }
 
 .messages {
@@ -317,7 +315,6 @@ button:disabled {
   overflow: auto;
   overflow-x: hidden;
   padding: 16px;
-  padding: clamp(9px, 4cqi, 16px);
   scrollbar-color: #353b36 transparent;
   scrollbar-width: thin;
 }
@@ -326,6 +323,13 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.conversation-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: stretch;
+  gap: 5px;
 }
 
 .conversation-item {
@@ -340,6 +344,24 @@ button:disabled {
   background: #151816;
   text-align: left;
   cursor: pointer;
+}
+
+.conversation-delete {
+  display: grid;
+  width: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #292e2a;
+  border-radius: 8px;
+  color: #737c75;
+  background: #151816;
+  cursor: pointer;
+}
+
+.conversation-delete:hover:not(:disabled) {
+  border-color: #653c37;
+  color: #df8178;
+  background: #241817;
 }
 
 .conversation-item:hover {
@@ -460,13 +482,11 @@ button:disabled {
   max-width: 100%;
   margin: 0;
   padding: 10px 12px;
-  padding: clamp(8px, 3cqi, 10px) clamp(8px, 3.5cqi, 12px);
   border: 1px solid #2a2f2b;
   border-radius: 3px 10px 10px 10px;
   color: #cdd3ce;
   background: #181c19;
   font-size: 12px;
-  font-size: clamp(10px, 3.2cqi, 12px);
   line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -644,8 +664,6 @@ button:disabled {
 
 .chat-compose-wrap {
   padding: 10px 12px 12px;
-  padding: clamp(8px, 3cqi, 10px) clamp(9px, 3.5cqi, 12px)
-    clamp(10px, 3.5cqi, 12px);
   border-top: 1px solid var(--line);
 }
 

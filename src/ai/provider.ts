@@ -38,6 +38,7 @@ export interface VisualReviewInput extends GenerateScadInput {
 
 export interface GenerateScadResult {
   source: string;
+  message?: string;
   reasoning?: string;
 }
 
@@ -68,20 +69,49 @@ function normalizeReasoning(reasoning?: string | null): string | undefined {
   return normalized.slice(0, 12_000);
 }
 
+export function parseSourceGenerationResponse(
+  content: string,
+): Pick<GenerateScadResult, "source" | "message"> {
+  const cleaned = stripMarkdownFences(content);
+  try {
+    const payload = JSON.parse(cleaned) as unknown;
+    if (payload && typeof payload === "object") {
+      const candidate = payload as Record<string, unknown>;
+      const source =
+        typeof candidate.source === "string"
+          ? stripMarkdownFences(candidate.source)
+          : "";
+      const message =
+        typeof candidate.message === "string"
+          ? candidate.message.trim().slice(0, 4000)
+          : "";
+      if (source) return { source, ...(message ? { message } : {}) };
+    }
+  } catch {
+    // Backward compatibility for providers still returning source-only SCAD.
+  }
+  return { source: cleaned };
+}
+
 abstract class PromptedProvider implements AIProvider {
   protected abstract infer(prompt: AssembledPrompt): Promise<InferenceResult>;
 
   async generateScad(input: GenerateScadInput): Promise<GenerateScadResult> {
     const prompt = assembleAgentPrompt(input);
     const result = await this.infer(prompt);
-    const source = stripMarkdownFences(result.content);
+    const parsed = parseSourceGenerationResponse(result.content);
+    const source = parsed.source;
     if (!source) {
       throw new Error(
         "The AI returned an empty response. The current source was not changed.",
       );
     }
     const reasoning = normalizeReasoning(result.reasoning);
-    return { source, ...(reasoning ? { reasoning } : {}) };
+    return {
+      source,
+      ...(parsed.message ? { message: parsed.message } : {}),
+      ...(reasoning ? { reasoning } : {}),
+    };
   }
 
   async reviewRender(input: VisualReviewInput): Promise<VisualReviewResult> {

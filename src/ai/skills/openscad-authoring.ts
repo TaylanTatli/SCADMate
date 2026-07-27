@@ -20,4 +20,7 @@ export const MESH_FORMAT_GUIDANCE = `SCAD, STL, and 3MF boundaries:
 - Do not turn the task into general mesh editing.`;
 
 export const SOURCE_RESPONSE_CONTRACT = `Required response format:
-Return only the complete updated OpenSCAD source. Do not return a patch, diff, explanation, JSON wrapper, or Markdown fence.`;
+Return one JSON object and no Markdown fence:
+{"source":"complete updated OpenSCAD source","message":"concise user-facing Markdown response in the requested output language"}
+
+The source must be a complete replacement file, never a patch or diff. The message is shown in chat as soon as generation completes, before visual review finishes. Briefly describe what was created or changed and mention important dimensional assumptions without claiming that visual review, exact fit, or printability has already been confirmed.`;

@@ -43,6 +43,7 @@ import {
 } from "./lib/revisions";
 import { BLANK_SOURCE, hasScadContent } from "./lib/scadSource";
 import {
+  deleteProject,
   loadActiveProject,
   loadProject,
   loadProjects,
@@ -92,12 +93,17 @@ function formatCompletionMessage(
     AutomaticCorrectionResult,
     | "accepted"
     | "correctionAttempts"
+    | "latestEvidence"
     | "message"
     | "observations"
     | "uncertainties"
   >,
+  generatedMessage?: string,
 ): string {
   if (result.message?.trim()) return result.message.trim();
+  if (result.latestEvidence?.ok && generatedMessage?.trim()) {
+    return generatedMessage.trim();
+  }
 
   const sections = [
     result.accepted
@@ -463,7 +469,8 @@ export function App() {
       });
       const nextSource = generation.source;
       updateAssistantMessage(
-        "Source generated. Compiling the model in OpenSCAD…",
+        generation.message ??
+          "Source generated. Compiling the model in OpenSCAD…",
         "sending",
         generation.reasoning,
       );
@@ -480,10 +487,11 @@ export function App() {
       const correctionResult = await runAutomaticCorrection({
         initialSource: nextSource,
         fallbackSource: lastValidSourceRef.current,
-        reviewTimeoutMs: 45_000,
+        reviewTimeoutMs: 120_000,
         render: async (candidate): Promise<RenderEvidence> => {
           updateAssistantMessage(
-            "Compiling and validating the generated geometry…",
+            generation.message ??
+              "Compiling and validating the generated geometry…",
             "sending",
             generation.reasoning,
           );
@@ -500,7 +508,8 @@ export function App() {
           let images: RenderEvidence["images"] = [];
           if (response.ok) {
             updateAssistantMessage(
-              "The model was generated and compiled successfully. It is ready to use while automatic visual review continues…",
+              generation.message ??
+                "The model was generated and compiled successfully. It is ready to use while automatic visual review continues…",
               "sending",
               generation.reasoning,
             );
@@ -524,7 +533,8 @@ export function App() {
         },
         review: (candidate, evidence) => {
           updateAssistantMessage(
-            "The model is ready. Running a final check against your request and rendered views…",
+            generation.message ??
+              "The model is ready. Running a final check against your request and rendered views…",
             "sending",
             generation.reasoning,
           );
@@ -562,7 +572,7 @@ export function App() {
       setHistory(nextHistory);
       setSource(correctionResult.source);
       updateAssistantMessage(
-        formatCompletionMessage(correctionResult),
+        formatCompletionMessage(correctionResult, generation.message),
         correctionResult.latestEvidence?.ok ? "done" : "error",
         generation.reasoning,
       );
@@ -621,9 +631,7 @@ export function App() {
     await saveActiveProjectId(project.id);
   };
 
-  const handleNewProject = async () => {
-    if (isGenerating) return;
-    await persistCurrentProject();
+  const createBlankProject = async (): Promise<void> => {
     const now = Date.now();
     const project: StoredProject = {
       id: crypto.randomUUID(),
@@ -638,11 +646,44 @@ export function App() {
     await openProject(project);
   };
 
+  const handleNewProject = async () => {
+    if (isGenerating) return;
+    await persistCurrentProject();
+    await createBlankProject();
+  };
+
   const handleSelectProject = async (nextProjectId: string) => {
     if (nextProjectId === projectId || isGenerating) return;
     await persistCurrentProject();
     const project = await loadProject(nextProjectId);
     if (project) await openProject(project);
+  };
+
+  const handleDeleteProject = async (targetProjectId: string) => {
+    if (isGenerating) return;
+    const target = projects.find((project) => project.id === targetProjectId);
+    if (
+      !target ||
+      !window.confirm(
+        `Delete “${target.name}”? This conversation and its source revisions will be removed from this device.`,
+      )
+    ) {
+      return;
+    }
+
+    await deleteProject(targetProjectId);
+    const remaining = await loadProjects();
+    setProjects(
+      remaining.map(({ id, name, updatedAt }) => ({ id, name, updatedAt })),
+    );
+    if (targetProjectId !== projectId) return;
+
+    const nextProject = remaining[0];
+    if (nextProject) {
+      await openProject(nextProject);
+    } else {
+      await createBlankProject();
+    }
   };
 
   const beginResize =
@@ -765,6 +806,7 @@ export function App() {
           onNewProject={() => void handleNewProject()}
           onSend={handleChatRequest}
           onSelectProject={(id) => void handleSelectProject(id)}
+          onDeleteProject={(id) => void handleDeleteProject(id)}
           onOpenSettings={() => setSettingsOpen(true)}
         />
         <div className="resize-handle" onPointerDown={beginResize("left")} />
