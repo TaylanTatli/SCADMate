@@ -23,41 +23,16 @@ async function writeJson(path, value) {
 const packageJson = await readJson("package.json");
 const packageLock = await readJson("package-lock.json");
 const tauriConfig = await readJson("src-tauri/tauri.conf.json");
-const cargoToml = await readFile("src-tauri/Cargo.toml", "utf8");
-const cargoLock = await readFile("src-tauri/Cargo.lock", "utf8");
 
 packageJson.version = version;
 packageLock.version = version;
 if (packageLock.packages?.[""]) packageLock.packages[""].version = version;
 tauriConfig.version = version;
 
-const updatedCargoToml = cargoToml.replace(
-  /(\[package\][\s\S]*?\nversion = ")[^"]+(")/,
-  `$1${version}$2`,
-);
-const updatedCargoLock = cargoLock.replace(
-  /(\[\[package\]\]\nname = "scadmate"\nversion = ")[^"]+(")/,
-  `$1${version}$2`,
-);
-if (
-  updatedCargoToml === cargoToml &&
-  !cargoToml.includes(`version = "${version}"`)
-) {
-  throw new Error("Could not update the Cargo package version.");
-}
-if (
-  updatedCargoLock === cargoLock &&
-  !cargoLock.includes(`name = "scadmate"\nversion = "${version}"`)
-) {
-  throw new Error("Could not update the Cargo lockfile version.");
-}
-
 await Promise.all([
   writeJson("package.json", packageJson),
   writeJson("package-lock.json", packageLock),
   writeJson("src-tauri/tauri.conf.json", tauriConfig),
-  writeFile("src-tauri/Cargo.toml", updatedCargoToml),
-  writeFile("src-tauri/Cargo.lock", updatedCargoLock),
 ]);
 
 process.stdout.write(`SCADmate version set to ${version}\n`);

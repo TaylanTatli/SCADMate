@@ -2,7 +2,9 @@
 
 Pushing a semantic-version tag matching `v*`, for example `v1.2.0` or `v1.2.0-beta.1`, starts
 `.github/workflows/release.yml`. The workflow validates the tag, derives the application version,
-runs the complete frontend and Rust validation suite, and builds on native GitHub-hosted runners.
+runs the fast frontend lint, type, and unit-test checks, and then builds on native GitHub-hosted
+runners. Each native Tauri build performs the real production frontend and Rust compilation for
+that operating system.
 
 The release contains:
 
@@ -15,9 +17,10 @@ Semantic-version tags with a prerelease component, such as `v1.2.0-rc.1`, are ma
 prereleases. Per-tag concurrency prevents two release runs from publishing the same tag
 simultaneously.
 
-The `scripts/set-version.mjs` helper synchronizes `package.json`, `package-lock.json`,
-`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` inside each CI job.
-Release version changes do not need to be committed separately.
+The `scripts/set-version.mjs` helper synchronizes `package.json`, `package-lock.json`, and
+`src-tauri/tauri.conf.json` inside each CI job. Tauri reads the installer version from its own
+configuration, so the Rust crate and lockfile remain untouched. Release version changes do not
+need to be committed separately.
 
 ## Unsigned builds
 
@@ -47,5 +50,5 @@ npm run build:web
 npm run tauri:build
 ```
 
-Run `npm run format` before submitting changes. `npm run format:check` performs the non-mutating
-format validation used by CI.
+Run `npm run format` before submitting changes. `npm run format:check` performs a non-mutating local
+format validation.
