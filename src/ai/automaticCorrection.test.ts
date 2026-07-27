@@ -15,6 +15,15 @@ const evidence = (ok: boolean, requestId: number): RenderEvidence => ({
   ...(!ok ? { error: "compile failed" } : {}),
 });
 
+const goodScores = {
+  requestFidelity: 4,
+  recognizability: 4,
+  proportions: 4,
+  structuralCoherence: 4,
+  requestedStyleMatch: 4,
+  printability: 4,
+};
+
 describe("automatic visual correction", () => {
   it("never exceeds two automatic source corrections", async () => {
     const render = vi
@@ -25,6 +34,11 @@ describe("automatic visual correction", () => {
     const review = vi.fn().mockImplementation((source: string) =>
       Promise.resolve({
         status: "revise" as const,
+        scores: goodScores,
+        decisionRationale: "A concrete source defect requires correction.",
+        blockingDefects: [
+          "The candidate still contains the identified defect.",
+        ],
         observations: [`problem in ${source}`],
         source: `${source}\n// correction`,
         uncertainties: [],
@@ -52,6 +66,9 @@ describe("automatic visual correction", () => {
       .mockResolvedValueOnce(evidence(false, 3));
     const review = vi.fn().mockResolvedValue({
       status: "revise",
+      scores: goodScores,
+      decisionRationale: "The correction failed to compile.",
+      blockingDefects: ["The corrected source does not compile."],
       observations: ["clear defect"],
       source: "broken();",
       uncertainties: [],
@@ -77,6 +94,10 @@ describe("automatic visual correction", () => {
       render: vi.fn().mockResolvedValue(evidence(false, 1)),
       review: vi.fn().mockResolvedValue({
         status: "accept",
+        scores: goodScores,
+        decisionRationale:
+          "No visual acceptance is possible after a failed compile.",
+        blockingDefects: [],
         observations: [],
         uncertainties: [],
       }),
@@ -107,5 +128,89 @@ describe("automatic visual correction", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("does not accept a compiled but visibly poor figurative model", async () => {
+    const result = await runAutomaticCorrection({
+      initialSource: "poor_antelope();",
+      fallbackSource: "previous_valid();",
+      render: vi.fn().mockResolvedValue(evidence(true, 1)),
+      review: vi.fn().mockResolvedValue({
+        status: "accept",
+        scores: {
+          ...goodScores,
+          requestFidelity: 2,
+          recognizability: 1,
+          proportions: 2,
+          requestedStyleMatch: 1,
+        },
+        decisionRationale:
+          "The requested realistic antelope is materially contradicted by rod-like anatomy.",
+        blockingDefects: [
+          "Legs are uniform rods.",
+          "The torso lacks an antelope-like ribcage.",
+        ],
+        observations: [
+          "Legs are uniform rods and the torso lacks an antelope-like ribcage.",
+          "The neck is disproportionately long for the requested realistic style.",
+        ],
+        uncertainties: [],
+      }),
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(result.uncertainties.join(" ")).toContain(
+      "explicit blocking defects",
+    );
+  });
+
+  it("automatically renders a corrected source when figurative scores are low", async () => {
+    const render = vi
+      .fn()
+      .mockResolvedValueOnce(evidence(true, 1))
+      .mockResolvedValueOnce(evidence(true, 2));
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: "revise",
+        scores: {
+          ...goodScores,
+          recognizability: 2,
+          proportions: 2,
+        },
+        decisionRationale:
+          "The visible anatomy materially misses the requested antelope proportions.",
+        blockingDefects: [
+          "Legs are uniform rods and the neck is disproportionately long.",
+        ],
+        observations: [
+          "Legs are uniform rods and the neck is disproportionately long.",
+        ],
+        source: "corrected_antelope();",
+        uncertainties: [],
+      })
+      .mockResolvedValueOnce({
+        status: "accept",
+        scores: goodScores,
+        decisionRationale:
+          "The corrected stylized anatomy now matches the request without a concrete blocker.",
+        blockingDefects: [],
+        observations: [
+          "The tapered legs, ribcage silhouette, and curved horns now read as an antelope.",
+        ],
+        uncertainties: [],
+      });
+
+    const result = await runAutomaticCorrection({
+      initialSource: "poor_antelope();",
+      fallbackSource: "previous_valid();",
+      render,
+      review,
+    });
+
+    expect(result.accepted).toBe(true);
+    expect(result.source).toBe("corrected_antelope();");
+    expect(result.correctionAttempts).toBe(1);
+    expect(render).toHaveBeenCalledTimes(2);
   });
 });

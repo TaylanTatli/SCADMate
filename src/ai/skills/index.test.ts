@@ -17,6 +17,20 @@ describe("OpenSCAD skill selection and prompt assembly", () => {
     );
     expect(selectSkillIds("visual-review")).toContain("visual-validation");
     expect(selectSkillIds("create")).not.toContain("visual-validation");
+    expect(
+      selectSkillIds("create", "Create a realistic antelope sculpture"),
+    ).toContain("organic-authoring");
+  });
+
+  it("adds organic capability boundaries and proportion planning when relevant", () => {
+    const prompt = assembleAgentPrompt({
+      userRequest: "Create a highly realistic antelope sculpture",
+    });
+
+    expect(prompt.skillIds).toContain("organic-authoring");
+    expect(prompt.systemPrompt).toContain("silhouette and proportion plan");
+    expect(prompt.systemPrompt).toContain("Blender");
+    expect(prompt.systemPrompt).toContain("uniform cylinders or rods");
   });
 
   it("omits irrelevant visual-review guidance from a creation prompt", () => {
@@ -77,6 +91,10 @@ describe("OpenSCAD skill selection and prompt assembly", () => {
     expect(prompt.userPrompt).toContain("WARNING: active warning");
     expect(prompt.userPrompt).toContain("isometric");
     expect(prompt.images).toHaveLength(1);
+    expect(prompt.systemPrompt).toContain('"requestFidelity":0');
+    expect(prompt.systemPrompt).toContain(
+      "Scores are decision support, not universal pass/fail gates",
+    );
   });
 });
 
@@ -115,7 +133,7 @@ describe("render log trimming", () => {
 describe("structured visual-review validation", () => {
   it("accepts valid fenced JSON and cleans a fenced corrected source", () => {
     const result = parseVisualReviewResponse(`\`\`\`json
-{"status":"revise","message":"### Model güncellendi\\n\\nAçıklık düzeltildi.","observations":["opening is blocked"],"source":"\`\`\`openscad\\ncube(10);\\n\`\`\`","uncertainties":[]}
+{"status":"revise","message":"### Model güncellendi\\n\\nAçıklık düzeltildi.","scores":{"requestFidelity":2,"recognizability":4,"proportions":4,"structuralCoherence":4,"requestedStyleMatch":4,"printability":4},"decisionRationale":"The blocked requested opening is a concrete defect.","blockingDefects":["The requested opening is visibly blocked by the rear wall."],"observations":["The requested opening is visibly blocked by the rear wall."],"source":"\`\`\`openscad\\ncube(10);\\n\`\`\`","uncertainties":[]}
 \`\`\``);
     expect(result.status).toBe("revise");
     expect(result.source).toBe("cube(10);");
@@ -125,8 +143,34 @@ describe("structured visual-review validation", () => {
   it("rejects revise responses without a complete source", () => {
     expect(() =>
       parseVisualReviewResponse(
-        '{"status":"revise","observations":["compile failed"],"uncertainties":[]}',
+        '{"status":"revise","scores":{"requestFidelity":1,"recognizability":1,"proportions":1,"structuralCoherence":1,"requestedStyleMatch":1,"printability":1},"decisionRationale":"The requested body is absent.","blockingDefects":["The requested body is missing."],"observations":["The requested body is missing."],"uncertainties":[]}',
       ),
     ).toThrow(/complete corrected OpenSCAD source/);
+  });
+
+  it("allows modest scores when they fit an intentionally abstract request", () => {
+    const result = parseVisualReviewResponse(
+      '{"status":"accept","scores":{"requestFidelity":4,"recognizability":2,"proportions":2,"structuralCoherence":4,"requestedStyleMatch":4,"printability":4},"decisionRationale":"The user requested an abstract geometric animal, so simplified anatomy is intentional and no concrete request contradiction is visible.","blockingDefects":[],"observations":["The angular silhouette and simplified proportions consistently match the requested abstract style."],"uncertainties":[]}',
+    );
+
+    expect(result.status).toBe("accept");
+    expect(result.scores.recognizability).toBe(2);
+    expect(result.blockingDefects).toEqual([]);
+  });
+
+  it("rejects generic compile-based visual approvals", () => {
+    expect(() =>
+      parseVisualReviewResponse(
+        '{"status":"accept","scores":{"requestFidelity":4,"recognizability":4,"proportions":4,"structuralCoherence":4,"requestedStyleMatch":4,"printability":4},"decisionRationale":"The geometry compiled.","blockingDefects":[],"observations":["No obvious geometry errors were found."],"uncertainties":[]}',
+      ),
+    ).toThrow(/request-specific/);
+  });
+
+  it("rejects acceptance when concrete blocking defects are declared", () => {
+    expect(() =>
+      parseVisualReviewResponse(
+        '{"status":"accept","scores":{"requestFidelity":4,"recognizability":4,"proportions":4,"structuralCoherence":4,"requestedStyleMatch":4,"printability":4},"decisionRationale":"The latest request is visibly missing.","blockingDefects":["The requested tail is absent."],"observations":["The rear view shows no tail."],"uncertainties":[]}',
+      ),
+    ).toThrow(/blocking defects cannot return accept/);
   });
 });

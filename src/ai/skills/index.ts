@@ -19,6 +19,7 @@ import {
   VISUAL_VALIDATION,
 } from "./visual-validation";
 import { PRINTABILITY } from "./printability";
+import { ORGANIC_AUTHORING } from "./organic-authoring";
 
 export type AgentTask =
   "create" | "revise" | "visual-review" | "mesh-reference";
@@ -29,6 +30,7 @@ export type SkillId =
   | "visual-validation"
   | "log-interpretation"
   | "printability"
+  | "organic-authoring"
   | "mesh-formats";
 
 export interface RenderedView {
@@ -60,9 +62,36 @@ export interface AssembledPrompt {
 export interface VisualReviewResult {
   status: "accept" | "revise";
   message?: string;
+  scores: VisualReviewScores;
+  decisionRationale: string;
+  blockingDefects: string[];
   observations: string[];
   source?: string;
   uncertainties: string[];
+}
+
+export interface VisualReviewScores {
+  requestFidelity: number;
+  recognizability: number;
+  proportions: number;
+  structuralCoherence: number;
+  requestedStyleMatch: number;
+  printability: number;
+}
+
+const SCORE_FIELDS = [
+  "requestFidelity",
+  "recognizability",
+  "proportions",
+  "structuralCoherence",
+  "requestedStyleMatch",
+  "printability",
+] as const satisfies ReadonlyArray<keyof VisualReviewScores>;
+
+export function visualReviewHasBlockingDefects(
+  review: Pick<VisualReviewResult, "blockingDefects">,
+): boolean {
+  return review.blockingDefects.length > 0;
 }
 
 const SECTION_BY_ID: Record<SkillId, string> = {
@@ -72,8 +101,16 @@ const SECTION_BY_ID: Record<SkillId, string> = {
   "visual-validation": VISUAL_VALIDATION,
   "log-interpretation": LOG_INTERPRETATION,
   printability: PRINTABILITY,
+  "organic-authoring": ORGANIC_AUTHORING,
   "mesh-formats": MESH_FORMAT_GUIDANCE,
 };
+
+const ORGANIC_SUBJECT_PATTERN =
+  /\b(?:organic|figurative|figure|figurine|sculpture|statue|anatomy|anatomical|realistic|animal|creature|human|person|body|head|torso|limb|leg|arm|tail|horn|antelope|gazelle|deer|horse|dog|cat|bird|owl|dragon|organik|figür|figürü|heykel|gerçekçi|hayvan|insan|gövde|baş|bacak|kol|kuyruk|boynuz|antilop|ceylan|geyik|at|köpek|kedi|kuş|baykuş|ejderha)\b/iu;
+
+export function isOrganicSubject(context: string): boolean {
+  return ORGANIC_SUBJECT_PATTERN.test(context);
+}
 
 export function selectAgentTask(
   userRequest: string,
@@ -86,17 +123,29 @@ export function selectAgentTask(
   return currentSource?.trim() ? "revise" : "create";
 }
 
-export function selectSkillIds(task: AgentTask): SkillId[] {
+export function selectSkillIds(task: AgentTask, context = ""): SkillId[] {
+  const organic = isOrganicSubject(context);
   switch (task) {
     case "create":
-      return ["policy", "authoring", "printability"];
+      return [
+        "policy",
+        "authoring",
+        ...(organic ? (["organic-authoring"] as const) : []),
+        "printability",
+      ];
     case "revise":
-      return ["policy", "authoring", "iteration"];
+      return [
+        "policy",
+        "authoring",
+        ...(organic ? (["organic-authoring"] as const) : []),
+        "iteration",
+      ];
     case "visual-review":
       return [
         "policy",
         "iteration",
         "visual-validation",
+        ...(organic ? (["organic-authoring"] as const) : []),
         "log-interpretation",
         "printability",
       ];
@@ -170,7 +219,12 @@ export function assembleAgentPrompt(
     input.currentSource,
     input.task,
   );
-  const skillIds = selectSkillIds(task);
+  const skillContext = [
+    input.userRequest,
+    input.currentSource ?? "",
+    ...(input.recentMessages ?? []).slice(-4).map((message) => message.content),
+  ].join("\n");
+  const skillIds = selectSkillIds(task, skillContext);
   const systemSections = skillIds.map((id) => SECTION_BY_ID[id]);
   systemSections.push(
     task === "visual-review"
@@ -253,10 +307,76 @@ export function parseVisualReviewResponse(raw: string): VisualReviewResult {
   }
   if (
     !Array.isArray(candidate.observations) ||
-    !candidate.observations.every((item) => typeof item === "string")
+    candidate.observations.length === 0 ||
+    !candidate.observations.every(
+      (item) => typeof item === "string" && item.trim().length > 0,
+    )
   ) {
     throw new Error(
-      "The visual-review observations must be an array of strings.",
+      "The visual-review observations must contain concrete evidence-based strings.",
+    );
+  }
+  const genericApproval =
+    /^(?:no obvious (?:geometry )?(?:errors?|issues?)(?: were found)?|no issues? (?:were )?found|looks? good|compiled successfully|geometry is valid)[.!]?$/i;
+  if (
+    candidate.observations.every(
+      (item) => typeof item === "string" && genericApproval.test(item.trim()),
+    )
+  ) {
+    throw new Error(
+      "The visual-review observations must be request-specific, not a generic approval.",
+    );
+  }
+
+  if (!candidate.scores || typeof candidate.scores !== "object") {
+    throw new Error("The visual-review response must include a scorecard.");
+  }
+  const rawScores = candidate.scores as Record<string, unknown>;
+  const scores = Object.fromEntries(
+    SCORE_FIELDS.map((field) => [field, rawScores[field]]),
+  ) as unknown as VisualReviewScores;
+  if (
+    SCORE_FIELDS.some(
+      (field) =>
+        typeof scores[field] !== "number" ||
+        !Number.isFinite(scores[field]) ||
+        scores[field] < 0 ||
+        scores[field] > 5,
+    )
+  ) {
+    throw new Error(
+      "Every visual-review score must be a finite number from 0 to 5.",
+    );
+  }
+  const decisionRationale =
+    typeof candidate.decisionRationale === "string"
+      ? candidate.decisionRationale.trim()
+      : "";
+  if (!decisionRationale) {
+    throw new Error(
+      "The visual-review response must explain its decision rationale.",
+    );
+  }
+  const blockingDefects =
+    Array.isArray(candidate.blockingDefects) &&
+    candidate.blockingDefects.every(
+      (item) => typeof item === "string" && item.trim().length > 0,
+    )
+      ? candidate.blockingDefects.map((item) => item.trim())
+      : undefined;
+  if (!blockingDefects) {
+    throw new Error(
+      "The visual-review blockingDefects must be an array of concrete strings.",
+    );
+  }
+  if (candidate.status === "accept" && blockingDefects.length > 0) {
+    throw new Error(
+      "A visual review with blocking defects cannot return accept.",
+    );
+  }
+  if (candidate.status === "revise" && blockingDefects.length === 0) {
+    throw new Error(
+      "A revise response must identify at least one concrete blocking defect.",
     );
   }
   const uncertainties =
@@ -288,6 +408,9 @@ export function parseVisualReviewResponse(raw: string): VisualReviewResult {
   return {
     status: candidate.status,
     ...(message ? { message } : {}),
+    scores,
+    decisionRationale,
+    blockingDefects,
     observations: candidate.observations,
     ...(source ? { source } : {}),
     uncertainties,

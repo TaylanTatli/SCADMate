@@ -1,5 +1,9 @@
 import type { RenderLog, RenderStatus } from "../types";
-import type { RenderedView, VisualReviewResult } from "./skills";
+import {
+  visualReviewHasBlockingDefects,
+  type RenderedView,
+  type VisualReviewResult,
+} from "./skills";
 
 export const MAX_AUTOMATIC_CORRECTIONS = 2;
 export const DEFAULT_VISUAL_REVIEW_TIMEOUT_MS = 120_000;
@@ -124,7 +128,17 @@ export async function runAutomaticCorrection({
 
     observations.push(...decision.observations);
     uncertainties.push(...decision.uncertainties);
-    if (decision.status === "accept" && latestEvidence.ok) {
+    const hasBlockingDefects = visualReviewHasBlockingDefects(decision);
+    const effectiveStatus = hasBlockingDefects
+      ? ("revise" as const)
+      : decision.status;
+    if (hasBlockingDefects && decision.status === "accept") {
+      uncertainties.push(
+        "The provider attempted to accept a model with explicit blocking defects; acceptance was rejected.",
+      );
+    }
+
+    if (effectiveStatus === "accept" && latestEvidence.ok) {
       return {
         source: candidate,
         accepted: true,
@@ -138,7 +152,7 @@ export async function runAutomaticCorrection({
     }
 
     if (
-      decision.status === "revise" &&
+      effectiveStatus === "revise" &&
       decision.source &&
       corrections < limit
     ) {
@@ -152,14 +166,19 @@ export async function runAutomaticCorrection({
         "The latest candidate did not compile; the previous valid source was restored.",
       );
     }
-    if (decision.status === "revise" && corrections >= limit) {
+    if (effectiveStatus === "revise" && corrections >= limit) {
       uncertainties.push(
         `Automatic correction stopped at the strict limit of ${limit}.`,
       );
     }
-    if (decision.status === "accept" && !latestEvidence.ok) {
+    if (effectiveStatus === "accept" && !latestEvidence.ok) {
       uncertainties.push(
         "A failed compile cannot be accepted solely from model output.",
+      );
+    }
+    if (effectiveStatus === "revise" && !decision.source) {
+      uncertainties.push(
+        "The identified blocking defects require revision, but no complete corrected source was returned.",
       );
     }
 

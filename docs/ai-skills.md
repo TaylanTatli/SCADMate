@@ -13,6 +13,10 @@ selected by `assembleAgentPrompt`.
 | Automatic render review | Policy, iteration, visual validation, log interpretation, printability |
 | STL/3MF or mesh request | Policy, authoring, mesh-format limitations                             |
 
+Organic and figurative requests additionally receive silhouette, proportion, tapered-volume, and
+capability-boundary guidance. Highly realistic anatomy is explicitly presented as a poor fit for
+OpenSCAD compared with Blender or a mesh sculpting/generation workflow.
+
 Creation and revision calls return a complete `.scad` file. The current source remains the editable
 source of truth; patches are not required. Visual review uses a validated JSON response with
 `accept` or `revise`, a concise user-facing Markdown message, observations, uncertainties, and
@@ -41,6 +45,13 @@ The source-generation response includes an AI-written chat message, so useful fe
 before visual review finishes. Review is limited to 120 seconds so a stalled provider cannot leave
 the chat pending indefinitely; a timeout keeps the latest valid model, preview, and initial
 AI-written message available.
+
+Every review must score request fidelity, recognizability, proportions, structural coherence,
+requested style match, and printability from 0 to 5. Scores support the decision but are not fixed
+pass/fail thresholds. The review must explain how user intent, requested style, model type, and
+observable evidence were weighed. Revision is enforced through explicit concrete blocking defects,
+not a low score alone. Generic compile-based approvals are rejected; observations must cite visible
+request-specific evidence.
 
 Visual evidence can reveal obvious placement and geometry problems, but it cannot prove exact
 dimensional fit, manifoldness, manufacturing tolerance, or print success. Those remain explicit
