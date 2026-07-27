@@ -55,6 +55,7 @@ jobs:
               src-tauri/target/release/bundle/deb/*.deb
               src-tauri/target/release/bundle/rpm/*.rpm
               src-tauri/target/release/bundle/appimage/*.AppImage
+              src-tauri/target/release/bundle/binary/*.tar.gz
           - name: macOS Apple Silicon
             id: macos-arm64
             runner: macos-15
@@ -130,6 +131,10 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}" \
             bash scripts/patch-appimage.sh "${appimages[0]}"
 
+      - name: Create Linux binary archive
+        if: runner.os == 'Linux'
+        run: bash scripts/package-linux-binary.sh "${GITHUB_REF_NAME#v}"
+
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
@@ -159,10 +164,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="${GITHUB_REF_NAME#v}"
+          bash scripts/normalize-release-assets.sh release-artifacts "$version"
+
           mapfile -d '' assets < <(
             find release-artifacts -type f \
               \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-                 -o -name '*.dmg' -o -name '*-setup.exe' \) \
+                 -o -name '*.tar.gz' -o -name '*.dmg' \
+                 -o -name '*-setup.exe' \) \
               -print0
           )
           if [[ ${#assets[@]} -eq 0 ]]; then

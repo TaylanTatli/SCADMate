@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SCADmate
+Comment=AI-assisted OpenSCAD workspace
+Exec=scadmate
+Icon=scadmate
+Terminal=false
+Categories=Graphics;Engineering;Development;
+StartupWMClass=scadmate

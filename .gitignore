@@ -49,6 +49,7 @@ temp/
 *.dmg
 *.msi
 *-setup.exe
+SCADmate_*_linux_*.tar.gz
 *.sig
 *.asc
 

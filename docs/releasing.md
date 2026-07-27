@@ -9,6 +9,7 @@ that operating system.
 The release contains:
 
 - Linux x64: Debian package, RPM package, and AppImage
+- Linux x64: system-library binary archive for direct execution and distribution packaging
 - macOS arm64 and Intel: DMG images
 - Windows x64: NSIS setup executable
 
@@ -16,6 +17,22 @@ The Linux release job post-processes the AppImage before upload. Tauri's GTK pac
 bundle the build runner's Wayland client libraries, which conflict with EGL on newer Linux hosts.
 SCADmate removes those host-provided libraries and repacks the image so Wayland/EGL resolves the
 compatible system copies. DEB and RPM packages are not modified.
+
+Release assets use explicit operating-system and architecture names:
+
+```text
+SCADmate_1.2.3_linux_x86_64.deb
+SCADmate_1.2.3_linux_x86_64.rpm
+SCADmate_1.2.3_linux_x86_64.AppImage
+SCADmate_1.2.3_linux_x86_64.tar.gz
+SCADmate_1.2.3_macos_arm64.dmg
+SCADmate_1.2.3_macos_x86_64.dmg
+SCADmate_1.2.3_windows_x86_64-setup.exe
+```
+
+The Linux archive contains the executable, desktop entry, icon, license, and a short runtime note.
+It intentionally uses host WebKitGTK/GTK libraries and is suitable as the source archive for a
+binary-distribution PKGBUILD.
 
 One GitHub Release is created after every build succeeds. GitHub generates its release notes.
 Semantic-version tags with a prerelease component, such as `v1.2.0-rc.1`, are marked as
