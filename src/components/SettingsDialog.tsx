@@ -31,17 +31,17 @@ type CliConnection = "idle" | "checking" | "connected" | "disconnected";
 const providerCopy = {
   codex: {
     name: "Codex",
-    subscription: "ChatGPT aboneliği",
+    subscription: "ChatGPT subscription",
     command: "codex",
-    modelLabel: "Codex modeli",
-    modelPlaceholder: "Boş bırakırsanız Codex varsayılanı kullanılır",
+    modelLabel: "Codex model",
+    modelPlaceholder: "Leave blank to use the Codex default",
   },
   "claude-code": {
     name: "Claude Code",
     subscription: "Claude Pro / Max",
     command: "claude",
-    modelLabel: "Claude modeli",
-    modelPlaceholder: "Boş bırakırsanız Claude Code varsayılanı kullanılır",
+    modelLabel: "Claude model",
+    modelPlaceholder: "Leave blank to use the Claude Code default",
   },
 } as const;
 
@@ -54,13 +54,13 @@ export function SettingsDialog({
   const [showKey, setShowKey] = useState(false);
   const [connection, setConnection] = useState<CliConnection>("idle");
   const [connectionDetail, setConnectionDetail] = useState(
-    "Kurulum ve oturum henüz kontrol edilmedi.",
+    "Installation and sign-in have not been checked yet.",
   );
 
   const selectProvider = (provider: AIProviderType) => {
     setDraft((current) => ({ ...current, provider }));
     setConnection("idle");
-    setConnectionDetail("Kurulum ve oturum henüz kontrol edilmedi.");
+    setConnectionDetail("Installation and sign-in have not been checked yet.");
   };
 
   const executableFor = (provider: LocalProvider) =>
@@ -69,11 +69,11 @@ export function SettingsDialog({
   const checkLocalProvider = async (provider: LocalProvider) => {
     const copy = providerCopy[provider];
     setConnection("checking");
-    setConnectionDetail(`${copy.name} kurulumu ve oturumu kontrol ediliyor…`);
+    setConnectionDetail(`Checking ${copy.name} installation and sign-in…`);
     if (!isDesktopRuntime()) {
       setConnection("disconnected");
       setConnectionDetail(
-        "Yerel CLI sağlayıcıları SCADmate masaüstü uygulamasında kullanılabilir.",
+        "Local CLI providers are available in the SCADmate desktop app.",
       );
       return;
     }
@@ -88,7 +88,9 @@ export function SettingsDialog({
     } catch (error) {
       setConnection("disconnected");
       setConnectionDetail(
-        error instanceof Error ? error.message : `${copy.name} başlatılamadı.`,
+        error instanceof Error
+          ? error.message
+          : `${copy.name} could not start.`,
       );
     }
   };
@@ -96,11 +98,11 @@ export function SettingsDialog({
   const startLogin = async (provider: LocalProvider) => {
     const copy = providerCopy[provider];
     setConnection("checking");
-    setConnectionDetail(`${copy.name} giriş akışı başlatılıyor…`);
+    setConnectionDetail(`Starting the ${copy.name} sign-in flow…`);
     if (!isDesktopRuntime()) {
       setConnection("disconnected");
       setConnectionDetail(
-        "Abonelik girişi SCADmate masaüstü uygulamasında kullanılabilir.",
+        "Subscription sign-in is available in the SCADmate desktop app.",
       );
       return;
     }
@@ -112,7 +114,7 @@ export function SettingsDialog({
         await nativeClaudeLogin(executableFor(provider));
       }
       setConnectionDetail(
-        `Tarayıcıda açılan ${copy.name} girişini tamamlayın, ardından bağlantıyı kontrol edin.`,
+        `Complete the ${copy.name} sign-in opened in your browser, then check the connection.`,
       );
       window.setTimeout(() => void checkLocalProvider(provider), 3000);
     } catch (error) {
@@ -120,7 +122,7 @@ export function SettingsDialog({
       setConnectionDetail(
         error instanceof Error
           ? error.message
-          : `${copy.name} girişi başlatılamadı.`,
+          : `${copy.name} sign-in could not be started.`,
       );
     }
   };
@@ -151,21 +153,21 @@ export function SettingsDialog({
       >
         <div className="dialog-heading">
           <div>
-            <span className="eyebrow">Model bağlantısı</span>
-            <h2 id="settings-title">AI sağlayıcı ayarları</h2>
+            <span className="eyebrow">Model connection</span>
+            <h2 id="settings-title">AI provider settings</h2>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Ayarları kapat"
+            aria-label="Close settings"
           >
             <X size={17} />
           </button>
         </div>
         <p className="dialog-intro">
-          Yerel Codex veya Claude Code kurulumunuzu kullanın; alternatif olarak
-          compatible API bilgilerini girin.
+          Use a local Codex or Claude Code installation, or configure an
+          OpenAI-compatible API.
         </p>
 
         <div className="output-language-setting">
@@ -183,7 +185,7 @@ export function SettingsDialog({
           >
             <option value="auto">Match the latest request</option>
             <option value="en">English</option>
-            <option value="tr">Türkçe</option>
+            <option value="tr">Turkish</option>
           </select>
           <small>
             Controls AI-written chat responses, review notes, and OpenSCAD
@@ -194,7 +196,7 @@ export function SettingsDialog({
         <div
           className="provider-choice"
           role="radiogroup"
-          aria-label="AI sağlayıcısı"
+          aria-label="AI provider"
         >
           <button
             type="button"
@@ -261,9 +263,9 @@ export function SettingsDialog({
               <div>
                 <strong>
                   {connection === "connected"
-                    ? `${localCopy.name} bağlı`
+                    ? `${localCopy.name} connected`
                     : connection === "checking"
-                      ? "Bağlantı kontrol ediliyor"
+                      ? "Checking connection"
                       : `${localCopy.name} · ${localCopy.subscription}`}
                 </strong>
                 <small>{connectionDetail}</small>
@@ -271,7 +273,7 @@ export function SettingsDialog({
             </div>
 
             <label>
-              Çalıştırılabilir dosya <em>Opsiyonel</em>
+              Executable <em>Optional</em>
               <input
                 value={executableFor(localProvider)}
                 onChange={(event) =>
@@ -282,11 +284,11 @@ export function SettingsDialog({
                       : { claudeExecutable: event.target.value }),
                   })
                 }
-                placeholder={`PATH üzerindeki “${localCopy.command}” komutu kullanılır`}
+                placeholder={`Uses “${localCopy.command}” from PATH`}
               />
             </label>
             <label>
-              {localCopy.modelLabel} <em>Opsiyonel</em>
+              {localCopy.modelLabel} <em>Optional</em>
               <input
                 value={
                   localProvider === "codex"
@@ -315,7 +317,7 @@ export function SettingsDialog({
                 ) : (
                   <Sparkles size={15} />
                 )}
-                Abonelik ile bağlan
+                Connect with subscription
               </button>
               <button
                 type="button"
@@ -323,14 +325,15 @@ export function SettingsDialog({
                 onClick={() => void checkLocalProvider(localProvider)}
               >
                 <RefreshCw size={14} />
-                Kurulumu ve oturumu kontrol et
+                Check installation and sign-in
               </button>
             </div>
             <div className="security-note">
               <ShieldCheck size={17} />
-              SCADmate bu aracı paketlemez. Sisteminizde kurulu{" "}
-              {localCopy.command} komutunu ve aracın kendi güvenli oturum
-              deposunu kullanır; OAuth bilgileri WebView’a aktarılmaz.
+              SCADmate does not bundle this tool. It uses the{" "}
+              {localCopy.command} command installed on your system and the
+              tool&apos;s secure session storage; OAuth credentials are never
+              exposed to the WebView.
             </div>
           </div>
         ) : (
@@ -358,15 +361,13 @@ export function SettingsDialog({
                   onChange={(event) =>
                     setDraft({ ...draft, apiKey: event.target.value })
                   }
-                  placeholder="İşletim sisteminin güvenli kasasında saklanır"
+                  placeholder="Stored in the operating system credential vault"
                 />
                 <button
                   type="button"
                   className="icon-button"
                   onClick={() => setShowKey((visible) => !visible)}
-                  aria-label={
-                    showKey ? "API anahtarını gizle" : "API anahtarını göster"
-                  }
+                  aria-label={showKey ? "Hide API key" : "Show API key"}
                 >
                   {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -380,25 +381,25 @@ export function SettingsDialog({
                 onChange={(event) =>
                   setDraft({ ...draft, model: event.target.value })
                 }
-                placeholder="Sağlayıcınızın model adı"
+                placeholder="Model name used by your provider"
               />
             </label>
             <div
               className={`security-note ${compatibleComplete ? "complete" : ""}`}
             >
               <ShieldCheck size={17} />
-              API key işletim sisteminin güvenli kasasında tutulur ve yalnızca
-              yukarıdaki endpoint’e gönderilir.
+              The API key is stored in the operating system credential vault and
+              sent only to the endpoint above.
             </div>
           </div>
         )}
 
         <div className="dialog-actions">
           <button type="button" className="button secondary" onClick={onClose}>
-            İptal
+            Cancel
           </button>
           <button type="submit" className="button primary">
-            Sağlayıcıyı kaydet
+            Save provider
           </button>
         </div>
       </form>

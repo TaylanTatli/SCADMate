@@ -166,10 +166,10 @@ fn process_detail(stdout: &[u8], stderr: &[u8]) -> String {
 fn command_error(tool: &str, error: std::io::Error) -> String {
     if error.kind() == std::io::ErrorKind::NotFound {
         format!(
-            "{tool} bulunamadı. Aracı sisteminize kurun veya Ayarlar'da çalıştırılabilir dosya yolunu belirtin."
+            "{tool} was not found. Install it on your system or configure its executable path in Settings."
         )
     } else {
-        format!("{tool} başlatılamadı: {error}")
+        format!("{tool} could not be started: {error}")
     }
 }
 
@@ -262,9 +262,9 @@ async fn local_cli_status(
         connected,
         detail: if detail.is_empty() {
             if connected {
-                format!("{fallback} kurulumu ve oturumu hazır.")
+                format!("{fallback} installation and sign-in are ready.")
             } else {
-                format!("{fallback} kurulu ancak aktif oturum bulunamadı.")
+                format!("{fallback} is installed, but no active session was found.")
             }
         } else {
             detail
