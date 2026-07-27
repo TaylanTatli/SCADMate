@@ -83,7 +83,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-width: 250px;
+  flex: 0 0 auto;
   padding: 0;
   border: 0;
   background: none;
@@ -110,48 +110,11 @@ select:focus-visible {
   color: var(--amber);
 }
 
-.brand small {
-  margin-left: 1px;
-  color: var(--faint);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.project-name {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  color: #b9c1bb;
-  font-size: 12px;
-}
-
-.project-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-name i {
-  color: var(--faint);
-  font-size: 10px;
-  font-style: normal;
-}
-
 .top-actions {
   display: flex;
   align-items: center;
   gap: 5px;
   margin-left: auto;
-}
-
-.toolbar-divider {
-  width: 1px;
-  height: 19px;
-  margin: 0 3px;
-  background: var(--line);
 }
 
 .icon-button,
@@ -277,26 +240,24 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #4f5551;
-  box-shadow: 0 0 0 4px rgb(79 85 81 / 10%);
+.conversation-heading {
+  min-width: 0;
 }
 
-.status-dot.ready {
-  background: var(--green);
-  box-shadow: 0 0 0 4px rgb(99 188 140 / 10%);
+.conversation-heading h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-heading-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
 
-.conversation-toggle {
+.conversation-action {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -309,9 +270,20 @@ button:disabled {
   cursor: pointer;
 }
 
-.conversation-toggle:hover {
+.conversation-action:hover {
   color: #d3d9d4;
   border-color: #454c46;
+}
+
+.conversation-action.primary {
+  border-color: #5c4428;
+  color: var(--amber-bright);
+  background: #211a13;
+}
+
+.conversation-action:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .chat-panel {
@@ -1324,12 +1296,6 @@ button:disabled {
 }
 
 @media (max-width: 1120px) {
-  .brand {
-    min-width: 175px;
-  }
-
-  .brand small,
-  .project-name i,
   .toolbar-button svg {
     display: none;
   }
@@ -1356,8 +1322,6 @@ button:disabled {
     top: 0;
   }
 
-  .project-name,
-  .toolbar-divider,
   .top-actions .toolbar-button {
     display: none;
   }

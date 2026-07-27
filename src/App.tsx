@@ -7,15 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  Download,
-  FileCode2,
-  Play,
-  Redo2,
-  Settings,
-  Sparkles,
-  Undo2,
-} from "lucide-react";
+import { Download, Play, Redo2, Settings, Sparkles, Undo2 } from "lucide-react";
 import { ChatPanel } from "./components/ChatPanel";
 import { LogsPanel } from "./components/LogsPanel";
 import {
@@ -616,23 +608,8 @@ export function App() {
           <strong>
             SCAD<span>mate</span>
           </strong>
-          <small>AI OpenSCAD workspace</small>
-        </div>
-        <div className="project-name">
-          <FileCode2 size={15} />
-          <span>{projectName}</span>
-          <i>Saved locally</i>
         </div>
         <nav className="top-actions" aria-label="Project actions">
-          <button
-            className="toolbar-button"
-            onClick={() => void handleNewProject()}
-            disabled={isGenerating}
-            title="Start a new conversation and workspace"
-          >
-            New
-          </button>
-          <span className="toolbar-divider" />
           <button
             className="icon-button"
             onClick={handleUndo}
@@ -692,10 +669,12 @@ export function App() {
         <ChatPanel
           key={projectId}
           activeProjectId={projectId}
+          projectName={projectName}
           projects={projects}
           messages={messages}
           isGenerating={isGenerating}
           configured={configured}
+          onNewProject={() => void handleNewProject()}
           onSend={handleChatRequest}
           onSelectProject={(id) => void handleSelectProject(id)}
           onOpenSettings={() => setSettingsOpen(true)}

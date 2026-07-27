@@ -6,16 +6,19 @@ import {
   History,
   KeyRound,
   MessageSquare,
+  Plus,
   Sparkles,
 } from "lucide-react";
 import type { ChatMessage, ProjectSummary } from "../types";
 
 interface ChatPanelProps {
   activeProjectId: string;
+  projectName: string;
   projects: ProjectSummary[];
   messages: ChatMessage[];
   isGenerating: boolean;
   configured: boolean;
+  onNewProject: () => void;
   onSend: (request: string) => void;
   onSelectProject: (projectId: string) => void;
   onOpenSettings: () => void;
@@ -23,10 +26,12 @@ interface ChatPanelProps {
 
 export function ChatPanel({
   activeProjectId,
+  projectName,
   projects,
   messages,
   isGenerating,
   configured,
+  onNewProject,
   onSend,
   onSelectProject,
   onOpenSettings,
@@ -45,26 +50,31 @@ export function ChatPanel({
   return (
     <section className="panel chat-panel" aria-label="AI chat">
       <div className="panel-heading">
-        <div>
-          <span className="eyebrow">AI copilot</span>
-          <h2>{showHistory ? "Conversations" : "Build by describing"}</h2>
+        <div className="conversation-heading">
+          <span className="eyebrow">
+            {showHistory ? "Conversation history" : "AI conversation"}
+          </span>
+          <h2>{showHistory ? "Recent conversations" : projectName}</h2>
         </div>
         <div className="chat-heading-actions">
           <button
-            className="conversation-toggle"
+            className="conversation-action primary"
+            onClick={onNewProject}
+            disabled={isGenerating}
+            title="Start a new conversation"
+          >
+            <Plus size={14} />
+            <span>New</span>
+          </button>
+          <button
+            className="conversation-action"
             onClick={() => setShowHistory((visible) => !visible)}
             aria-expanded={showHistory}
-            title={
-              showHistory ? "Back to current conversation" : "Conversations"
-            }
+            title={showHistory ? "Back to current conversation" : "History"}
           >
             {showHistory ? <ArrowLeft size={14} /> : <History size={14} />}
-            <span>{showHistory ? "Back" : "Chats"}</span>
+            <span>{showHistory ? "Back" : "History"}</span>
           </button>
-          <span
-            className={`status-dot ${configured ? "ready" : ""}`}
-            title="AI configuration status"
-          />
         </div>
       </div>
 
