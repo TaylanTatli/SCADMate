@@ -14,6 +14,7 @@ components are:
 | [React](https://github.com/facebook/react)                  | User interface                           | MIT               |
 | [Dexie](https://github.com/dexie/Dexie.js)                  | IndexedDB abstraction                    | Apache-2.0        |
 | [Lucide](https://github.com/lucide-icons/lucide)            | Interface icons                          | ISC               |
+| [Streamdown](https://github.com/vercel/streamdown)          | AI response Markdown rendering           | Apache-2.0        |
 
 The OpenSCAD WASM bundle contains further compiled dependencies. Its upstream repository and the
 [OpenSCAD Playground license inventory](https://github.com/openscad/openscad-playground/blob/master/LICENSE.md)

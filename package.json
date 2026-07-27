@@ -27,6 +27,7 @@
     "openscad-wasm": "0.0.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "streamdown": "^2.5.0",
     "three": "^0.185.1"
   },
   "devDependencies": {

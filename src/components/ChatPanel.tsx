@@ -10,6 +10,7 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
+import { Streamdown } from "streamdown";
 import type { ChatMessage, ProjectSummary } from "../types";
 
 interface ChatPanelProps {
@@ -133,7 +134,21 @@ export function ChatPanel({
               className={`message ${message.role} ${message.status ?? "done"}`}
             >
               <span>{message.role === "user" ? "You" : "SCADmate"}</span>
-              <div className="message-content">{message.content}</div>
+              <div className="message-content">
+                {message.role === "assistant" ? (
+                  <Streamdown
+                    className="streamdown-message"
+                    controls={false}
+                    mode={message.status === "sending" ? "streaming" : "static"}
+                    animated={message.status === "sending"}
+                    isAnimating={message.status === "sending"}
+                  >
+                    {message.content}
+                  </Streamdown>
+                ) : (
+                  message.content
+                )}
+              </div>
               {message.role === "assistant" && message.reasoning && (
                 <details className="message-reasoning">
                   <summary>

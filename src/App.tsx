@@ -19,6 +19,7 @@ import { WorkspacePanel, type WorkspaceTab } from "./components/WorkspacePanel";
 import { createAIProvider } from "./ai/provider";
 import {
   runAutomaticCorrection,
+  type AutomaticCorrectionResult,
   type RenderEvidence,
 } from "./ai/automaticCorrection";
 import {
@@ -84,6 +85,42 @@ const newMessage = (
   createdAt: Date.now(),
   status,
 });
+
+function formatCompletionMessage(
+  result: Pick<
+    AutomaticCorrectionResult,
+    "accepted" | "correctionAttempts" | "observations" | "uncertainties"
+  >,
+): string {
+  const sections = [
+    result.accepted
+      ? "### Model ready\n\nThe model compiled successfully and the rendered views were reviewed."
+      : "### Review stopped\n\nThe last valid model and preview were preserved.",
+  ];
+
+  if (result.correctionAttempts > 0) {
+    sections.push(`**Automatic corrections:** ${result.correctionAttempts}`);
+  }
+
+  const observations = result.observations.slice(-3);
+  if (observations.length > 0) {
+    sections.push(
+      `#### Review\n\n${observations
+        .map((observation) => `- ${observation.trim()}`)
+        .join("\n")}`,
+    );
+  }
+
+  if (result.uncertainties.length > 0) {
+    sections.push(
+      `#### Needs verification\n\n${result.uncertainties
+        .map((uncertainty) => `- ${uncertainty.trim()}`)
+        .join("\n")}`,
+    );
+  }
+
+  return sections.join("\n\n");
+}
 
 function classifyLog(
   text: string,
@@ -515,22 +552,7 @@ export function App() {
       setHistory(nextHistory);
       setSource(correctionResult.source);
       updateAssistantMessage(
-        [
-          correctionResult.accepted
-            ? "The model is ready. It compiled successfully and the rendered views were reviewed."
-            : "Automatic review stopped with the last valid model preserved.",
-          correctionResult.correctionAttempts
-            ? `${correctionResult.correctionAttempts} automatic correction attempt(s) were used.`
-            : "",
-          correctionResult.observations.length
-            ? `Review observations: ${correctionResult.observations.slice(-3).join(" ")}`
-            : "",
-          correctionResult.uncertainties.length
-            ? `Unresolved: ${correctionResult.uncertainties.join(" ")}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        formatCompletionMessage(correctionResult),
         correctionResult.accepted ? "done" : "error",
         generation.reasoning,
       );
