@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Permissions for the local SCADmate desktop window",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["core:default"]
+}

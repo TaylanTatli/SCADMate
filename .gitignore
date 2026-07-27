@@ -1,0 +1,57 @@
+# JavaScript tooling
+node_modules/
+dist/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Rust and Tauri generated output
+src-tauri/target/
+src-tauri/gen/
+
+# Local environment and application configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and temporary files
+*.log
+*.pid
+*.tmp
+*.temp
+*.bak
+*.swp
+tmp/
+temp/
+.scadmate-temp/
+.codebase-memory/
+
+# Generated CAD exports and render captures
+/exports/
+/renders/
+/*.stl
+/*.3mf
+
+# Signing material
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Release packages copied outside Tauri's target directory
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.msi
+*-setup.exe
+*.sig
+*.asc
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db

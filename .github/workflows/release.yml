@@ -1,0 +1,189 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set application version from tag
+        run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Validate frontend and Rust
+        run: |
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          npm run build:web
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            id: linux-x64
+            runner: ubuntu-22.04
+            bundles: deb,rpm,appimage
+            apple_signing_identity: ""
+            artifact_paths: |
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/rpm/*.rpm
+              src-tauri/target/release/bundle/appimage/*.AppImage
+          - name: macOS Apple Silicon
+            id: macos-arm64
+            runner: macos-15
+            bundles: dmg
+            apple_signing_identity: "-"
+            artifact_paths: src-tauri/target/release/bundle/dmg/*.dmg
+          - name: macOS Intel
+            id: macos-x64
+            runner: macos-15-intel
+            bundles: dmg
+            apple_signing_identity: "-"
+            artifact_paths: src-tauri/target/release/bundle/dmg/*.dmg
+          - name: Windows x64
+            id: windows-x64
+            runner: windows-latest
+            bundles: nsis
+            apple_signing_identity: ""
+            artifact_paths: src-tauri/target/release/bundle/nsis/*-setup.exe
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            file \
+            rpm
+
+      - name: Set application version from tag
+        run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build native installers
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ matrix.apple_signing_identity }}
+        run: npm run tauri:build -- --bundles ${{ matrix.bundles }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.id }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create release and attach installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -d '' assets < <(
+            find release-artifacts -type f \
+              \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
+                 -o -name '*.dmg' -o -name '*-setup.exe' \) \
+              -print0
+          )
+          if [[ ${#assets[@]} -eq 0 ]]; then
+            echo 'No release installers were downloaded.' >&2
+            exit 1
+          fi
+
+          release_args=(
+            release create "$GITHUB_REF_NAME"
+            --verify-tag
+            --generate-notes
+            --title "SCADmate $GITHUB_REF_NAME"
+          )
+          if [[ "${GITHUB_REF_NAME#v}" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh "${release_args[@]}" "${assets[@]}"
