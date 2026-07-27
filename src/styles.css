@@ -87,7 +87,7 @@ select:focus-visible {
   padding: 0;
   border: 0;
   background: none;
-  cursor: pointer;
+  cursor: default;
 }
 
 .brand-mark {

@@ -1,14 +1,10 @@
 /// <reference lib="webworker" />
 
 import { createOpenSCAD } from "openscad-wasm";
+import { formatUnknownError } from "../lib/errors";
 import type { RenderRequest, RenderResponse } from "../types";
 
 const scope = self as DedicatedWorkerGlobalScope;
-
-function formatError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
 
 scope.onmessage = async (event: MessageEvent<RenderRequest>) => {
   if (event.data.type !== "render") return;
@@ -51,7 +47,10 @@ scope.onmessage = async (event: MessageEvent<RenderRequest>) => {
       type: "result",
       requestId,
       ok: false,
-      error: formatError(error),
+      error: formatUnknownError(
+        error,
+        "OpenSCAD compilation failed without an error message.",
+      ),
       stdout,
       stderr,
       elapsedMs: performance.now() - startedAt,

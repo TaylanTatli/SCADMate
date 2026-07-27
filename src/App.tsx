@@ -35,6 +35,7 @@ import {
   type CustomizerVariable,
 } from "./lib/customizer";
 import { downloadBlob, downloadSource } from "./lib/downloads";
+import { formatUnknownError } from "./lib/errors";
 import { RenderCoordinator } from "./lib/renderCoordinator";
 import {
   commitRevision,
@@ -42,6 +43,7 @@ import {
   redoRevision,
   undoRevision,
 } from "./lib/revisions";
+import { BLANK_SOURCE, hasScadContent } from "./lib/scadSource";
 import {
   loadProject,
   loadSettings,
@@ -116,7 +118,10 @@ function renderLogsForResponse(response: RenderResponse): RenderLog[] {
       stream: response.ok ? "stdout" : "error",
       text: response.ok
         ? `Render completed in ${(response.elapsedMs / 1000).toFixed(2)} seconds.`
-        : response.error || "OpenSCAD compilation failed.",
+        : formatUnknownError(
+            response.error,
+            "OpenSCAD compilation failed without an error message.",
+          ),
       timestamp,
     },
   ];
@@ -216,7 +221,10 @@ export function App() {
       setRenderError(undefined);
       setLogs(outputLogs);
     } else {
-      const error = response.error || "OpenSCAD compilation failed.";
+      const error = formatUnknownError(
+        response.error,
+        "OpenSCAD compilation failed without an error message.",
+      );
       setRenderStatus("error");
       setRenderError(error);
       setLogs(outputLogs);
@@ -285,6 +293,16 @@ export function App() {
 
   useEffect(() => {
     if (!hydrated) return;
+    if (!hasScadContent(source)) {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      coordinatorRef.current.begin();
+      setRenderStatus("idle");
+      setRenderError(undefined);
+      setLogs([]);
+      return;
+    }
     if (skipNextDebouncedRenderRef.current === source) {
       skipNextDebouncedRenderRef.current = undefined;
       return;
@@ -450,15 +468,26 @@ export function App() {
   };
 
   const handleNewProject = () => {
-    const blank =
-      "// Describe your model in chat, or start writing OpenSCAD here.\n";
-    setSource(blank);
-    setHistory(createHistory(blank, "New blank project"));
-    setMessages([]);
+    let nextHistory = history;
+    if (nextHistory.present.source !== source) {
+      nextHistory = commitRevision(
+        nextHistory,
+        source,
+        "Manual edits before new project",
+      );
+    }
+    nextHistory = commitRevision(
+      nextHistory,
+      BLANK_SOURCE,
+      "New blank project",
+    );
+    setHistory(nextHistory);
+    setSource(BLANK_SOURCE);
     hasValidStlRef.current = false;
     setStl(null);
     setLogs([]);
     setRenderStatus("idle");
+    setRenderError(undefined);
     setWorkspaceTab("source");
   };
 
@@ -506,11 +535,7 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button
-          className="brand"
-          onClick={() => window.location.reload()}
-          aria-label="SCADmate home"
-        >
+        <div className="brand" aria-label="SCADmate">
           <span className="brand-mark">
             <Sparkles size={16} />
           </span>
@@ -518,7 +543,7 @@ export function App() {
             SCAD<span>mate</span>
           </strong>
           <small>AI OpenSCAD workspace</small>
-        </button>
+        </div>
         <div className="project-name">
           <FileCode2 size={15} />
           <span>Display enclosure</span>
@@ -528,7 +553,7 @@ export function App() {
           <button
             className="toolbar-button"
             onClick={handleNewProject}
-            title="New blank project"
+            title="New blank source (Undo restores the current source)"
           >
             New
           </button>
@@ -537,7 +562,7 @@ export function App() {
             className="icon-button"
             onClick={handleUndo}
             disabled={history.past.length === 0}
-            title="Undo AI revision"
+            title="Undo source revision"
           >
             <Undo2 size={16} />
           </button>
@@ -545,7 +570,7 @@ export function App() {
             className="icon-button"
             onClick={handleRedo}
             disabled={history.future.length === 0}
-            title="Redo AI revision"
+            title="Redo source revision"
           >
             <Redo2 size={16} />
           </button>
@@ -570,7 +595,9 @@ export function App() {
             className="render-button"
             onClick={() => renderSource(source)}
             disabled={
-              renderStatus === "rendering" || renderStatus === "initializing"
+              !hasScadContent(source) ||
+              renderStatus === "rendering" ||
+              renderStatus === "initializing"
             }
           >
             <Play size={14} fill="currentColor" />
