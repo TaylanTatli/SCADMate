@@ -79,6 +79,7 @@ export async function loadSettings(): Promise<AISettings | undefined> {
   }
   return {
     provider: settings.provider ?? "codex",
+    outputLanguage: settings.outputLanguage ?? "auto",
     codexModel: settings.codexModel ?? "",
     codexExecutable: settings.codexExecutable ?? "",
     claudeModel: settings.claudeModel ?? "",

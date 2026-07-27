@@ -40,6 +40,8 @@ The development command starts Vite, compiles the Rust host, and opens the deskt
 **Settings**, choose Codex, Claude Code, or Compatible API. Local CLI providers use the command
 found on `PATH`; an explicit executable path can be entered when a GUI-launched application has a
 different PATH. Use the connection button to start the provider's browser login.
+The AI output-language setting controls generated chat responses, review notes, and OpenSCAD
+comments without changing the application interface language.
 
 Useful commands:
 

@@ -1,6 +1,12 @@
-import type { ChatMessage, RenderLog, RenderStatus } from "../../types";
+import type {
+  ChatMessage,
+  OutputLanguage,
+  RenderLog,
+  RenderStatus,
+} from "../../types";
 import type { CustomizerVariable } from "../../lib/customizer";
 import { stripMarkdownFences } from "../../lib/markdown";
+import { outputLanguageInstruction } from "../../lib/outputLanguage";
 import { ITERATION_POLICY, SCADMATE_POLICY } from "./scadmate-policy";
 import {
   MESH_FORMAT_GUIDANCE,
@@ -33,6 +39,7 @@ export interface RenderedView {
 export interface PromptAssemblyInput {
   task?: AgentTask;
   userRequest: string;
+  outputLanguage?: OutputLanguage;
   currentSource?: string;
   recentMessages?: ChatMessage[];
   customizerVariables?: CustomizerVariable[];
@@ -52,6 +59,7 @@ export interface AssembledPrompt {
 
 export interface VisualReviewResult {
   status: "accept" | "revise";
+  message?: string;
   observations: string[];
   source?: string;
   uncertainties: string[];
@@ -169,6 +177,9 @@ export function assembleAgentPrompt(
       ? VISUAL_REVIEW_RESPONSE_CONTRACT
       : SOURCE_RESPONSE_CONTRACT,
   );
+  systemSections.push(
+    `OUTPUT LANGUAGE:\n${outputLanguageInstruction(input.outputLanguage ?? "auto")}`,
+  );
 
   const userSections = [`LATEST USER REQUEST:\n${input.userRequest.trim()}`];
   if (input.currentSource?.trim()) {
@@ -270,8 +281,13 @@ export function parseVisualReviewResponse(raw: string): VisualReviewResult {
       "A revise response must include complete corrected OpenSCAD source.",
     );
   }
+  const message =
+    typeof candidate.message === "string" && candidate.message.trim()
+      ? candidate.message.trim().slice(0, 4000)
+      : undefined;
   return {
     status: candidate.status,
+    ...(message ? { message } : {}),
     observations: candidate.observations,
     ...(source ? { source } : {}),
     uncertainties,

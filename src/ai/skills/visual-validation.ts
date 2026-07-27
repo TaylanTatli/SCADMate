@@ -14,6 +14,6 @@ export const LOG_INTERPRETATION = `OpenSCAD log interpretation:
 - If compilation failed, an earlier preview may still be visible and must not be mistaken for the failed candidate.`;
 
 export const VISUAL_REVIEW_RESPONSE_CONTRACT = `Return one JSON object and no Markdown:
-{"status":"accept"|"revise","observations":["short evidence-based observation"],"source":"complete corrected OpenSCAD source when status is revise","uncertainties":["unresolved fit, measurement, or print assumptions"]}
+{"status":"accept"|"revise","message":"concise user-facing Markdown response in the requested output language","observations":["short evidence-based observation"],"source":"complete corrected OpenSCAD source when status is revise","uncertainties":["unresolved fit, measurement, or print assumptions"]}
 
-Use "accept" only when the current candidate compiled and no clear correction is justified. Omit source or use an empty string for accept.`;
+Use "accept" only when the current candidate compiled and no clear correction is justified. Omit source or use an empty string for accept. The message is the final chat response shown directly to the user. Make it useful and compact, mention what was created or changed, compilation/review outcome, and only material uncertainties. Do not repeat long checklists. Keep message, observations, and uncertainties consistently in the requested output language.`;

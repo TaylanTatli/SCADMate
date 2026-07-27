@@ -65,6 +65,7 @@ import type {
 
 const DEFAULT_SETTINGS: AISettings = {
   provider: "codex",
+  outputLanguage: "auto",
   codexModel: "",
   codexExecutable: "",
   claudeModel: "",
@@ -89,13 +90,19 @@ const newMessage = (
 function formatCompletionMessage(
   result: Pick<
     AutomaticCorrectionResult,
-    "accepted" | "correctionAttempts" | "observations" | "uncertainties"
+    | "accepted"
+    | "correctionAttempts"
+    | "message"
+    | "observations"
+    | "uncertainties"
   >,
 ): string {
+  if (result.message?.trim()) return result.message.trim();
+
   const sections = [
     result.accepted
       ? "### Model ready\n\nThe model compiled successfully and the rendered views were reviewed."
-      : "### Review stopped\n\nThe last valid model and preview were preserved.",
+      : "### Review incomplete\n\nThe last valid model and preview were preserved.",
   ];
 
   if (result.correctionAttempts > 0) {
@@ -446,6 +453,7 @@ export function App() {
       const provider = createAIProvider(settings);
       const generation = await provider.generateScad({
         userRequest: request,
+        outputLanguage: settings.outputLanguage,
         currentSource: source.trim() ? source : undefined,
         recentMessages: messages,
         customizerVariables: variables,
@@ -472,6 +480,7 @@ export function App() {
       const correctionResult = await runAutomaticCorrection({
         initialSource: nextSource,
         fallbackSource: lastValidSourceRef.current,
+        reviewTimeoutMs: 45_000,
         render: async (candidate): Promise<RenderEvidence> => {
           updateAssistantMessage(
             "Compiling and validating the generated geometry…",
@@ -491,7 +500,7 @@ export function App() {
           let images: RenderEvidence["images"] = [];
           if (response.ok) {
             updateAssistantMessage(
-              "The model compiled successfully. Reviewing the rendered views…",
+              "The model was generated and compiled successfully. It is ready to use while automatic visual review continues…",
               "sending",
               generation.reasoning,
             );
@@ -515,12 +524,13 @@ export function App() {
         },
         review: (candidate, evidence) => {
           updateAssistantMessage(
-            "Checking the model against your request and the render evidence…",
+            "The model is ready. Running a final check against your request and rendered views…",
             "sending",
             generation.reasoning,
           );
           return provider.reviewRender({
             userRequest: request,
+            outputLanguage: settings.outputLanguage,
             currentSource: candidate,
             recentMessages: contextMessages,
             customizerVariables: parseCustomizerVariables(candidate),
@@ -553,7 +563,7 @@ export function App() {
       setSource(correctionResult.source);
       updateAssistantMessage(
         formatCompletionMessage(correctionResult),
-        correctionResult.accepted ? "done" : "error",
+        correctionResult.latestEvidence?.ok ? "done" : "error",
         generation.reasoning,
       );
     } catch (error) {

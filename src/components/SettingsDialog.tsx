@@ -168,6 +168,29 @@ export function SettingsDialog({
           compatible API bilgilerini girin.
         </p>
 
+        <div className="output-language-setting">
+          <label htmlFor="output-language">AI output language</label>
+          <select
+            id="output-language"
+            value={draft.outputLanguage}
+            onChange={(event) =>
+              setDraft({
+                ...draft,
+                outputLanguage: event.target
+                  .value as AISettings["outputLanguage"],
+              })
+            }
+          >
+            <option value="auto">Match the latest request</option>
+            <option value="en">English</option>
+            <option value="tr">Türkçe</option>
+          </select>
+          <small>
+            Controls AI-written chat responses, review notes, and OpenSCAD
+            comments. It does not change the application interface.
+          </small>
+        </div>
+
         <div
           className="provider-choice"
           role="radiogroup"

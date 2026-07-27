@@ -2,6 +2,7 @@ import type { RenderLog, RenderStatus } from "../types";
 import type { RenderedView, VisualReviewResult } from "./skills";
 
 export const MAX_AUTOMATIC_CORRECTIONS = 2;
+export const DEFAULT_VISUAL_REVIEW_TIMEOUT_MS = 45_000;
 
 export interface RenderEvidence {
   ok: boolean;
@@ -21,12 +22,14 @@ export interface AutomaticCorrectionInput {
     evidence: RenderEvidence,
   ) => Promise<VisualReviewResult>;
   maxCorrections?: number;
+  reviewTimeoutMs?: number;
 }
 
 export interface AutomaticCorrectionResult {
   source: string;
   accepted: boolean;
   correctionAttempts: number;
+  message?: string;
   observations: string[];
   uncertainties: string[];
   validSources: string[];
@@ -39,6 +42,7 @@ export async function runAutomaticCorrection({
   render,
   review,
   maxCorrections = MAX_AUTOMATIC_CORRECTIONS,
+  reviewTimeoutMs = DEFAULT_VISUAL_REVIEW_TIMEOUT_MS,
 }: AutomaticCorrectionInput): Promise<AutomaticCorrectionResult> {
   const limit = Math.max(
     0,
@@ -51,6 +55,32 @@ export async function runAutomaticCorrection({
   const validSources: string[] = [];
   const observations: string[] = [];
   const uncertainties: string[] = [];
+
+  const reviewWithTimeout = (
+    source: string,
+    evidence: RenderEvidence,
+  ): Promise<VisualReviewResult> =>
+    new Promise((resolve, reject) => {
+      const timeout = globalThis.setTimeout(
+        () =>
+          reject(
+            new Error(
+              "The visual review exceeded its time limit. The compiled model remains available.",
+            ),
+          ),
+        Math.max(1, reviewTimeoutMs),
+      );
+      void review(source, evidence).then(
+        (result) => {
+          globalThis.clearTimeout(timeout);
+          resolve(result);
+        },
+        (error: unknown) => {
+          globalThis.clearTimeout(timeout);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        },
+      );
+    });
 
   while (true) {
     try {
@@ -76,7 +106,7 @@ export async function runAutomaticCorrection({
 
     let decision: VisualReviewResult;
     try {
-      decision = await review(candidate, latestEvidence);
+      decision = await reviewWithTimeout(candidate, latestEvidence);
     } catch (error) {
       uncertainties.push(
         `Automatic visual review failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -99,6 +129,7 @@ export async function runAutomaticCorrection({
         source: candidate,
         accepted: true,
         correctionAttempts: corrections,
+        ...(decision.message ? { message: decision.message } : {}),
         observations,
         uncertainties,
         validSources,

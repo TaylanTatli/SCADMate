@@ -22,6 +22,7 @@ describe("OpenSCAD skill selection and prompt assembly", () => {
   it("omits irrelevant visual-review guidance from a creation prompt", () => {
     const prompt = assembleAgentPrompt({
       userRequest: "Create a small enclosure",
+      outputLanguage: "tr",
       currentSource: undefined,
     });
 
@@ -33,6 +34,7 @@ describe("OpenSCAD skill selection and prompt assembly", () => {
     expect(prompt.systemPrompt).toContain(
       "Return only the complete updated OpenSCAD source",
     );
+    expect(prompt.systemPrompt).toContain("Use Turkish");
   });
 
   it("includes current source, parameters, active logs, and view names for review", () => {
@@ -113,10 +115,11 @@ describe("render log trimming", () => {
 describe("structured visual-review validation", () => {
   it("accepts valid fenced JSON and cleans a fenced corrected source", () => {
     const result = parseVisualReviewResponse(`\`\`\`json
-{"status":"revise","observations":["opening is blocked"],"source":"\`\`\`openscad\\ncube(10);\\n\`\`\`","uncertainties":[]}
+{"status":"revise","message":"### Model güncellendi\\n\\nAçıklık düzeltildi.","observations":["opening is blocked"],"source":"\`\`\`openscad\\ncube(10);\\n\`\`\`","uncertainties":[]}
 \`\`\``);
     expect(result.status).toBe("revise");
     expect(result.source).toBe("cube(10);");
+    expect(result.message).toContain("Model güncellendi");
   });
 
   it("rejects revise responses without a complete source", () => {

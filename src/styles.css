@@ -1165,6 +1165,41 @@ button:disabled {
   margin-bottom: 19px;
 }
 
+.output-language-setting {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.65fr) minmax(180px, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid #2c322e;
+  border-radius: 9px;
+  background: #121513;
+}
+
+.output-language-setting label {
+  color: #c7cec8;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.output-language-setting select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #343a36;
+  border-radius: 6px;
+  color: #dbe1dc;
+  background: #1a1e1b;
+  font-size: 10px;
+}
+
+.output-language-setting small {
+  grid-column: 1 / -1;
+  color: #687169;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .provider-choice > button {
   display: grid;
   grid-template-columns: 38px 1fr 14px;
@@ -1560,6 +1595,14 @@ button:disabled {
 
   .provider-choice {
     grid-template-columns: 1fr;
+  }
+
+  .output-language-setting {
+    grid-template-columns: 1fr;
+  }
+
+  .output-language-setting small {
+    grid-column: auto;
   }
 
   .codex-actions {

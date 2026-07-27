@@ -87,4 +87,25 @@ describe("automatic visual correction", () => {
     expect(history.present.source).toBe(result.source);
     expect(result.accepted).toBe(false);
   });
+
+  it("stops waiting for a visual review after the configured timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const resultPromise = runAutomaticCorrection({
+        initialSource: "cube(10);",
+        fallbackSource: "sphere(5);",
+        render: vi.fn().mockResolvedValue(evidence(true, 1)),
+        review: vi.fn().mockReturnValue(new Promise(() => undefined)),
+        reviewTimeoutMs: 25,
+      });
+
+      await vi.advanceTimersByTimeAsync(25);
+      const result = await resultPromise;
+
+      expect(result.source).toBe("cube(10);");
+      expect(result.uncertainties.join(" ")).toContain("time limit");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

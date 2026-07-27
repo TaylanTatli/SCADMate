@@ -22,6 +22,7 @@ import {
 
 export interface GenerateScadInput {
   userRequest: string;
+  outputLanguage?: AISettings["outputLanguage"];
   currentSource?: string;
   recentMessages: ChatMessage[];
   customizerVariables?: CustomizerVariable[];

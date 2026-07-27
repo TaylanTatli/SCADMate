@@ -15,8 +15,9 @@ selected by `assembleAgentPrompt`.
 
 Creation and revision calls return a complete `.scad` file. The current source remains the editable
 source of truth; patches are not required. Visual review uses a validated JSON response with
-`accept` or `revise`, observations, uncertainties, and complete replacement source when revision
-is requested.
+`accept` or `revise`, a concise user-facing Markdown message, observations, uncertainties, and
+complete replacement source when revision is requested. The AI writes that chat message in the
+output language selected in Settings; SCADmate does not rebuild it from hard-coded prose.
 
 ## Evidence and correction flow
 
@@ -35,6 +36,10 @@ reviewed again, with an unconditional maximum of two automatic corrections. Fail
 not committed as valid revisions. A compile, review, timeout, or structured-response failure stops
 the loop and restores the most recent valid source and preview. Observations and unresolved
 uncertainties are shown in chat.
+
+The successfully compiled model is announced immediately while visual review continues. Review is
+limited to 45 seconds so a slow provider cannot leave the chat pending indefinitely; a timeout
+keeps the latest valid model and preview available.
 
 Visual evidence can reveal obvious placement and geometry problems, but it cannot prove exact
 dimensional fit, manifoldness, manufacturing tolerance, or print success. Those remain explicit

@@ -10,9 +10,11 @@ export interface ChatMessage {
 }
 
 export type AIProviderType = "codex" | "claude-code" | "openai-compatible";
+export type OutputLanguage = "auto" | "tr" | "en";
 
 export interface AISettings {
   provider: AIProviderType;
+  outputLanguage: OutputLanguage;
   codexModel: string;
   codexExecutable: string;
   claudeModel: string;
