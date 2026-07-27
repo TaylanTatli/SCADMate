@@ -4,6 +4,7 @@ export interface ChatMessage {
   id: string;
   role: Exclude<MessageRole, "system">;
   content: string;
+  reasoning?: string;
   createdAt: number;
   status?: "sending" | "done" | "error";
 }

@@ -429,7 +429,7 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.message p {
+.message-content {
   margin: 0;
   padding: 10px 12px;
   border: 1px solid #2a2f2b;
@@ -441,25 +441,78 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-.message.user p {
+.message.user .message-content {
   border-color: #403523;
   border-radius: 10px 3px 10px 10px;
   background: #211b14;
   color: #e7d7bd;
 }
 
+.message.sending .message-content {
+  color: #aeb6b0;
+}
+
+.message.error .message-content {
+  border-color: #5c3531;
+  color: #e1a19a;
+  background: #241817;
+}
+
 .message.user > span {
   text-align: right;
+}
+
+.message-reasoning {
+  margin-top: 6px;
+  border: 1px solid #292f2a;
+  border-radius: 7px;
+  color: #89938b;
+  background: #131614;
+  font-size: 10px;
+}
+
+.message-reasoning summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  color: #9ba59d;
+  cursor: pointer;
+  user-select: none;
+}
+
+.message-reasoning summary::marker {
+  color: #69726b;
+}
+
+.message-reasoning[open] summary {
+  border-bottom: 1px solid #292f2a;
+}
+
+.message-reasoning > div {
+  max-height: 220px;
+  overflow: auto;
+  padding: 9px;
+  color: #858f87;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.message-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  color: #707a72;
+  font-size: 9px;
 }
 
 .thinking-dots {
   display: flex;
   gap: 4px;
   width: fit-content;
-  padding: 12px;
-  border: 1px solid #2a2f2b;
-  border-radius: 3px 10px 10px 10px;
-  background: #181c19;
 }
 
 .thinking-dots i {

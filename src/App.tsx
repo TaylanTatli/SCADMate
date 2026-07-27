@@ -211,7 +211,17 @@ export function App() {
           setProjectName(project.name);
           setSource(project.source);
           setHistory(project.history);
-          setMessages(project.messages);
+          setMessages(
+            project.messages.map((message) =>
+              message.status === "sending"
+                ? {
+                    ...message,
+                    content: `${message.content}\n\nThis operation was interrupted before it completed.`,
+                    status: "error",
+                  }
+                : message,
+            ),
+          );
           void saveActiveProjectId(project.id);
         }
         if (storedSettings) setSettings(storedSettings);
@@ -337,10 +347,12 @@ export function App() {
       workerRef.current = null;
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
       coordinatorRef.current.begin();
-      setRenderStatus("idle");
-      setRenderError(undefined);
-      setLogs([]);
-      return;
+      const resetTimer = window.setTimeout(() => {
+        setRenderStatus("idle");
+        setRenderError(undefined);
+        setLogs([]);
+      }, 0);
+      return () => window.clearTimeout(resetTimer);
     }
     if (skipNextDebouncedRenderRef.current === source) {
       skipNextDebouncedRenderRef.current = undefined;
@@ -365,14 +377,37 @@ export function App() {
     }
     const userMessage = newMessage("user", request);
     const contextMessages = [...messages, userMessage];
+    const assistantMessage = newMessage(
+      "assistant",
+      "Generating the OpenSCAD source…",
+      "sending",
+    );
+    const updateAssistantMessage = (
+      content: string,
+      status: ChatMessage["status"],
+      reasoning?: string,
+    ) => {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantMessage.id
+            ? {
+                ...message,
+                content,
+                status,
+                reasoning: reasoning ?? message.reasoning,
+              }
+            : message,
+        ),
+      );
+    };
     if (messages.length === 0 && projectName === NEW_PROJECT_NAME) {
       setProjectName(projectNameFromRequest(request));
     }
-    setMessages(contextMessages);
+    setMessages([...contextMessages, assistantMessage]);
     setIsGenerating(true);
     try {
       const provider = createAIProvider(settings);
-      const nextSource = await provider.generateScad({
+      const generation = await provider.generateScad({
         userRequest: request,
         currentSource: source.trim() ? source : undefined,
         recentMessages: messages,
@@ -381,6 +416,12 @@ export function App() {
         renderRequestId: coordinatorRef.current.currentRequestId,
         renderLogs: logs,
       });
+      const nextSource = generation.source;
+      updateAssistantMessage(
+        "Source generated. Compiling the model in OpenSCAD…",
+        "sending",
+        generation.reasoning,
+      );
 
       let nextHistory = history;
       if (history.present.source !== source) {
@@ -395,6 +436,11 @@ export function App() {
         initialSource: nextSource,
         fallbackSource: lastValidSourceRef.current,
         render: async (candidate): Promise<RenderEvidence> => {
+          updateAssistantMessage(
+            "Compiling and validating the generated geometry…",
+            "sending",
+            generation.reasoning,
+          );
           skipNextDebouncedRenderRef.current = candidate;
           setSource(candidate);
           setWorkspaceTab("source");
@@ -407,8 +453,19 @@ export function App() {
           const renderLogs = renderLogsForResponse(response);
           let images: RenderEvidence["images"] = [];
           if (response.ok) {
+            updateAssistantMessage(
+              "The model compiled successfully. Reviewing the rendered views…",
+              "sending",
+              generation.reasoning,
+            );
             await waitForPreviewPaint();
             images = (await previewRef.current?.captureViews()) ?? [];
+          } else {
+            updateAssistantMessage(
+              "Compilation reported a problem. Reviewing the logs for a focused correction…",
+              "sending",
+              generation.reasoning,
+            );
           }
           return {
             ok: response.ok,
@@ -419,8 +476,13 @@ export function App() {
             ...(!response.ok ? { error: response.error } : {}),
           };
         },
-        review: (candidate, evidence) =>
-          provider.reviewRender({
+        review: (candidate, evidence) => {
+          updateAssistantMessage(
+            "Checking the model against your request and the render evidence…",
+            "sending",
+            generation.reasoning,
+          );
+          return provider.reviewRender({
             userRequest: request,
             currentSource: candidate,
             recentMessages: contextMessages,
@@ -429,7 +491,8 @@ export function App() {
             renderRequestId: evidence.requestId,
             renderLogs: evidence.logs,
             renderedViews: evidence.images,
-          }),
+          });
+        },
       });
 
       correctionResult.validSources.forEach((validSource, index) => {
@@ -451,40 +514,33 @@ export function App() {
       skipNextDebouncedRenderRef.current = correctionResult.source;
       setHistory(nextHistory);
       setSource(correctionResult.source);
-      setMessages((current) => [
-        ...current,
-        newMessage(
-          "assistant",
-          [
-            correctionResult.accepted
-              ? "Updated, compiled, and visually reviewed the complete OpenSCAD model."
-              : "Automatic review stopped with the last valid model preserved.",
-            correctionResult.correctionAttempts
-              ? `${correctionResult.correctionAttempts} automatic correction attempt(s) were used.`
-              : "",
-            correctionResult.observations.length
-              ? `Review observations: ${correctionResult.observations.slice(-3).join(" ")}`
-              : "",
-            correctionResult.uncertainties.length
-              ? `Unresolved: ${correctionResult.uncertainties.join(" ")}`
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-          correctionResult.accepted ? "done" : "error",
-        ),
-      ]);
+      updateAssistantMessage(
+        [
+          correctionResult.accepted
+            ? "The model is ready. It compiled successfully and the rendered views were reviewed."
+            : "Automatic review stopped with the last valid model preserved.",
+          correctionResult.correctionAttempts
+            ? `${correctionResult.correctionAttempts} automatic correction attempt(s) were used.`
+            : "",
+          correctionResult.observations.length
+            ? `Review observations: ${correctionResult.observations.slice(-3).join(" ")}`
+            : "",
+          correctionResult.uncertainties.length
+            ? `Unresolved: ${correctionResult.uncertainties.join(" ")}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        correctionResult.accepted ? "done" : "error",
+        generation.reasoning,
+      );
     } catch (error) {
-      setMessages((current) => [
-        ...current,
-        newMessage(
-          "assistant",
-          error instanceof Error
-            ? error.message
-            : "The AI request failed. Your source was not changed.",
-          "error",
-        ),
-      ]);
+      updateAssistantMessage(
+        error instanceof Error
+          ? error.message
+          : "The AI request failed. Your source was not changed.",
+        "error",
+      );
     } finally {
       setIsGenerating(false);
     }

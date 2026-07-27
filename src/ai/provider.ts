@@ -35,33 +35,58 @@ export interface VisualReviewInput extends GenerateScadInput {
   renderedViews: RenderedView[];
 }
 
+export interface GenerateScadResult {
+  source: string;
+  reasoning?: string;
+}
+
+interface InferenceResult {
+  content: string;
+  reasoning?: string;
+}
+
 export interface AIProvider {
-  generateScad(input: GenerateScadInput): Promise<string>;
+  generateScad(input: GenerateScadInput): Promise<GenerateScadResult>;
   reviewRender(input: VisualReviewInput): Promise<VisualReviewResult>;
 }
 
 interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string | null } }>;
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+      reasoning?: string | null;
+      reasoning_content?: string | null;
+    };
+  }>;
   error?: { message?: string };
 }
 
-abstract class PromptedProvider implements AIProvider {
-  protected abstract infer(prompt: AssembledPrompt): Promise<string>;
+function normalizeReasoning(reasoning?: string | null): string | undefined {
+  const normalized = reasoning?.trim();
+  if (!normalized) return undefined;
+  return normalized.slice(0, 12_000);
+}
 
-  async generateScad(input: GenerateScadInput): Promise<string> {
+abstract class PromptedProvider implements AIProvider {
+  protected abstract infer(prompt: AssembledPrompt): Promise<InferenceResult>;
+
+  async generateScad(input: GenerateScadInput): Promise<GenerateScadResult> {
     const prompt = assembleAgentPrompt(input);
-    const source = stripMarkdownFences(await this.infer(prompt));
+    const result = await this.infer(prompt);
+    const source = stripMarkdownFences(result.content);
     if (!source) {
       throw new Error(
         "The AI returned an empty response. The current source was not changed.",
       );
     }
-    return source;
+    const reasoning = normalizeReasoning(result.reasoning);
+    return { source, ...(reasoning ? { reasoning } : {}) };
   }
 
   async reviewRender(input: VisualReviewInput): Promise<VisualReviewResult> {
     const prompt = assembleAgentPrompt({ ...input, task: "visual-review" });
-    return parseVisualReviewResponse(await this.infer(prompt));
+    const result = await this.infer(prompt);
+    return parseVisualReviewResponse(result.content);
   }
 }
 
@@ -70,7 +95,7 @@ export class OpenAICompatibleProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<string> {
+  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
     const { endpoint, apiKey, model } = this.settings;
     if (!endpoint.trim() || !apiKey.trim() || !model.trim()) {
       throw new Error(
@@ -148,7 +173,14 @@ export class OpenAICompatibleProvider extends PromptedProvider {
           `AI request failed with HTTP ${response.status}.`,
       );
     }
-    return payload.choices?.[0]?.message?.content ?? "";
+    const message = payload.choices?.[0]?.message;
+    const reasoning = normalizeReasoning(
+      message?.reasoning ?? message?.reasoning_content,
+    );
+    return {
+      content: message?.content ?? "",
+      ...(reasoning ? { reasoning } : {}),
+    };
   }
 }
 
@@ -157,7 +189,7 @@ export class CodexProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<string> {
+  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
     if (!isDesktopRuntime()) {
       throw new Error(
         "ChatGPT subscription access is available in the SCADmate desktop app.",
@@ -191,7 +223,7 @@ export class ClaudeCodeProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<string> {
+  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
     if (!isDesktopRuntime()) {
       throw new Error(
         "Claude subscription access is available in the SCADmate desktop app.",

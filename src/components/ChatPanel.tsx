@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowUp,
   Bot,
+  BrainCircuit,
   History,
   KeyRound,
   MessageSquare,
@@ -127,21 +128,33 @@ export function ChatPanel({
           </div>
         ) : (
           messages.map((message) => (
-            <article key={message.id} className={`message ${message.role}`}>
+            <article
+              key={message.id}
+              className={`message ${message.role} ${message.status ?? "done"}`}
+            >
               <span>{message.role === "user" ? "You" : "SCADmate"}</span>
-              <p>{message.content}</p>
+              <div className="message-content">{message.content}</div>
+              {message.role === "assistant" && message.reasoning && (
+                <details className="message-reasoning">
+                  <summary>
+                    <BrainCircuit size={13} />
+                    Reasoning summary
+                  </summary>
+                  <div>{message.reasoning}</div>
+                </details>
+              )}
+              {message.status === "sending" && (
+                <div className="message-progress" aria-label="AI is working">
+                  <span className="thinking-dots">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  Working
+                </div>
+              )}
             </article>
           ))
-        )}
-        {isGenerating && (
-          <article className="message assistant thinking">
-            <span>SCADmate</span>
-            <div className="thinking-dots">
-              <i />
-              <i />
-              <i />
-            </div>
-          </article>
         )}
       </div>
 

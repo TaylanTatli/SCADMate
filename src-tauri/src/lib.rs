@@ -12,6 +12,7 @@ use tokio::process::Command;
 const INFERENCE_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_RENDER_IMAGES: usize = 7;
 const MAX_RENDER_IMAGE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_REASONING_CHARS: usize = 12_000;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +30,14 @@ struct InferenceInput {
     images: Vec<RenderedImage>,
     model: Option<String>,
     executable: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InferenceOutput {
+    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +74,8 @@ struct CompatibleChoice {
 #[derive(Debug, Deserialize)]
 struct CompatibleMessage {
     content: Option<String>,
+    reasoning: Option<String>,
+    reasoning_content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +98,51 @@ fn strip_markdown_fences(value: &str) -> String {
         .unwrap_or(without_opening)
         .trim()
         .to_string()
+}
+
+fn collect_reasoning_text(value: &serde_json::Value, output: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(text) if !text.trim().is_empty() => {
+            output.push(text.trim().to_string());
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                collect_reasoning_text(value, output);
+            }
+        }
+        serde_json::Value::Object(object) => {
+            for key in ["summary", "text"] {
+                if let Some(value) = object.get(key) {
+                    collect_reasoning_text(value, output);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn codex_reasoning_summary(stdout: &[u8]) -> Option<String> {
+    let mut summaries = Vec::new();
+    for line in String::from_utf8_lossy(stdout).lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(item) = event.get("item") else {
+            continue;
+        };
+        if item.get("type").and_then(serde_json::Value::as_str) != Some("reasoning") {
+            continue;
+        }
+        collect_reasoning_text(item, &mut summaries);
+    }
+
+    summaries.dedup();
+    let combined = summaries.join("\n\n");
+    if combined.is_empty() {
+        None
+    } else {
+        Some(combined.chars().take(MAX_REASONING_CHARS).collect())
+    }
 }
 
 fn configured_executable(configured: Option<&str>, fallback: &str) -> String {
@@ -247,7 +303,7 @@ async fn codex_login(executable: Option<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn codex_generate(input: InferenceInput) -> Result<String, String> {
+async fn codex_generate(input: InferenceInput) -> Result<InferenceOutput, String> {
     validate_inference(&input.system_prompt, &input.user_prompt)?;
     let executable = configured_executable(input.executable.as_deref(), "codex");
     let workspace = tempfile::tempdir().map_err(|error| error.to_string())?;
@@ -265,6 +321,7 @@ async fn codex_generate(input: InferenceInput) -> Result<String, String> {
         "--ignore-rules",
         "--color",
         "never",
+        "--json",
         "--cd",
     ]);
     command.arg(workspace.path());
@@ -317,7 +374,10 @@ async fn codex_generate(input: InferenceInput) -> Result<String, String> {
     if response.is_empty() {
         return Err("Codex returned an empty response.".to_string());
     }
-    Ok(response)
+    Ok(InferenceOutput {
+        content: response,
+        reasoning: codex_reasoning_summary(&output.stdout),
+    })
 }
 
 #[tauri::command]
@@ -331,7 +391,7 @@ async fn claude_login(executable: Option<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn claude_generate(input: InferenceInput) -> Result<String, String> {
+async fn claude_generate(input: InferenceInput) -> Result<InferenceOutput, String> {
     validate_inference(&input.system_prompt, &input.user_prompt)?;
     let executable = configured_executable(input.executable.as_deref(), "claude");
     let workspace = tempfile::tempdir().map_err(|error| error.to_string())?;
@@ -412,11 +472,14 @@ async fn claude_generate(input: InferenceInput) -> Result<String, String> {
     if response.is_empty() {
         return Err("Claude Code returned an empty response.".to_string());
     }
-    Ok(response)
+    Ok(InferenceOutput {
+        content: response,
+        reasoning: None,
+    })
 }
 
 #[tauri::command]
-async fn compatible_generate(input: CompatibleInferenceInput) -> Result<String, String> {
+async fn compatible_generate(input: CompatibleInferenceInput) -> Result<InferenceOutput, String> {
     if input.endpoint.trim().is_empty()
         || input.api_key.trim().is_empty()
         || input.model.trim().is_empty()
@@ -474,17 +537,26 @@ async fn compatible_generate(input: CompatibleInferenceInput) -> Result<String, 
             .unwrap_or_else(|| format!("AI request failed with HTTP {status}.")));
     }
 
-    let response = result
+    let message = result
         .choices
         .and_then(|choices| choices.into_iter().next())
-        .and_then(|choice| choice.message)
-        .and_then(|message| message.content)
+        .and_then(|choice| choice.message);
+    let response = message
+        .as_ref()
+        .and_then(|message| message.content.as_deref())
         .map(|value| strip_markdown_fences(&value))
         .unwrap_or_default();
     if response.is_empty() {
         return Err("The AI returned an empty response.".to_string());
     }
-    Ok(response)
+    let reasoning = message
+        .and_then(|message| message.reasoning.or(message.reasoning_content))
+        .map(|value| value.trim().chars().take(MAX_REASONING_CHARS).collect())
+        .filter(|value: &String| !value.is_empty());
+    Ok(InferenceOutput {
+        content: response,
+        reasoning,
+    })
 }
 
 #[tauri::command]
@@ -539,7 +611,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        configured_executable, safe_image_name, strip_markdown_fences, validate_inference,
+        codex_reasoning_summary, configured_executable, safe_image_name, strip_markdown_fences,
+        validate_inference,
     };
 
     #[test]
@@ -564,6 +637,19 @@ mod tests {
             "/opt/tools/codex"
         );
         assert_eq!(configured_executable(Some(""), "codex"), "codex");
+    }
+
+    #[test]
+    fn extracts_reasoning_summaries_from_codex_jsonl() {
+        let jsonl = concat!(
+            "{\"type\":\"item.completed\",\"item\":{\"type\":\"reasoning\",\"summary\":[{\"text\":\"Checked the requested dimensions.\"}]}}\n",
+            "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"cube(10);\"}}\n",
+            "{\"type\":\"item.completed\",\"item\":{\"type\":\"reasoning\",\"text\":\"Verified printable wall thickness.\"}}\n"
+        );
+        assert_eq!(
+            codex_reasoning_summary(jsonl.as_bytes()).as_deref(),
+            Some("Checked the requested dimensions.\n\nVerified printable wall thickness.")
+        );
     }
 
     #[test]

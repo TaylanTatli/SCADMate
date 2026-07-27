@@ -19,6 +19,11 @@ interface NativeInferenceInput {
   executable?: string;
 }
 
+export interface NativeInferenceResult {
+  content: string;
+  reasoning?: string;
+}
+
 export function isDesktopRuntime(): boolean {
   return isTauri();
 }
@@ -37,8 +42,8 @@ export async function nativeCodexLogin(executable?: string): Promise<void> {
 
 export async function nativeCodexGenerate(
   input: NativeInferenceInput,
-): Promise<string> {
-  return invoke<string>("codex_generate", { input });
+): Promise<NativeInferenceResult> {
+  return invoke<NativeInferenceResult>("codex_generate", { input });
 }
 
 export async function nativeClaudeStatus(
@@ -55,8 +60,8 @@ export async function nativeClaudeLogin(executable?: string): Promise<void> {
 
 export async function nativeClaudeGenerate(
   input: NativeInferenceInput,
-): Promise<string> {
-  return invoke<string>("claude_generate", { input });
+): Promise<NativeInferenceResult> {
+  return invoke<NativeInferenceResult>("claude_generate", { input });
 }
 
 export async function nativeCompatibleGenerate(input: {
@@ -66,8 +71,8 @@ export async function nativeCompatibleGenerate(input: {
   systemPrompt: string;
   userPrompt: string;
   images: NativeRenderedView[];
-}): Promise<string> {
-  return invoke<string>("compatible_generate", { input });
+}): Promise<NativeInferenceResult> {
+  return invoke<NativeInferenceResult>("compatible_generate", { input });
 }
 
 export async function nativeLoadApiKey(): Promise<string | null> {
