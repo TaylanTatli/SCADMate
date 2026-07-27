@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-const rawVersion = process.argv[2] ?? process.env.GITHUB_REF_NAME ?? "";
+const rawVersion =
+  process.argv[2]?.trim() || process.env.GITHUB_REF_NAME?.trim() || "";
 const version = rawVersion.startsWith("v") ? rawVersion.slice(1) : rawVersion;
 const semver =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;

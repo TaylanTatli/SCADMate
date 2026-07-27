@@ -27,7 +27,7 @@ jobs:
           cache: npm
 
       - name: Set application version from tag
-        run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
+        run: node scripts/set-version.mjs
 
       - name: Install Linux build dependencies
         run: |
@@ -129,7 +129,7 @@ jobs:
             rpm
 
       - name: Set application version from tag
-        run: node scripts/set-version.mjs "$GITHUB_REF_NAME"
+        run: node scripts/set-version.mjs
 
       - name: Install frontend dependencies
         run: npm ci
