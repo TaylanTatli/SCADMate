@@ -12,6 +12,11 @@ The release contains:
 - macOS arm64 and Intel: DMG images
 - Windows x64: NSIS setup executable
 
+The Linux release job post-processes the AppImage before upload. Tauri's GTK packaging tool can
+bundle the build runner's Wayland client libraries, which conflict with EGL on newer Linux hosts.
+SCADmate removes those host-provided libraries and repacks the image so Wayland/EGL resolves the
+compatible system copies. DEB and RPM packages are not modified.
+
 One GitHub Release is created after every build succeeds. GitHub generates its release notes.
 Semantic-version tags with a prerelease component, such as `v1.2.0-rc.1`, are marked as
 prereleases. Per-tag concurrency prevents two release runs from publishing the same tag

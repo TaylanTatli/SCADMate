@@ -116,6 +116,20 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ matrix.apple_signing_identity }}
         run: npm run tauri:build -- --bundles ${{ matrix.bundles }}
 
+      - name: Remove host-incompatible Wayland libraries from AppImage
+        if: runner.os == 'Linux'
+        run: |
+          mapfile -d '' appimages < <(
+            find src-tauri/target/release/bundle/appimage \
+              -maxdepth 1 -type f -name '*.AppImage' -print0
+          )
+          if [[ ${#appimages[@]} -ne 1 ]]; then
+            echo "Expected one AppImage, found ${#appimages[@]}." >&2
+            exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}" \
+            bash scripts/patch-appimage.sh "${appimages[0]}"
+
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
