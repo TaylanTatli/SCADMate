@@ -288,7 +288,7 @@ button:disabled {
 
 .chat-panel {
   display: grid;
-  grid-template-rows: 66px minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   container-name: chat;
   container-type: inline-size;
 }
