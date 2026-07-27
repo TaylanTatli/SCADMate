@@ -241,7 +241,9 @@ button:disabled {
 }
 
 .conversation-heading {
+  flex: 1 1 170px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .conversation-heading h2 {
@@ -252,15 +254,22 @@ button:disabled {
 
 .chat-heading-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 128px;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .conversation-action {
   display: inline-flex;
+  flex: 1 1 58px;
   align-items: center;
+  justify-content: center;
   gap: 5px;
+  min-width: 0;
   padding: 5px 7px;
   border: 1px solid #303631;
   border-radius: 7px;
@@ -293,9 +302,22 @@ button:disabled {
   container-type: inline-size;
 }
 
+.chat-panel > .panel-heading {
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  height: auto;
+  min-height: 66px;
+  padding: 10px 16px;
+  padding: clamp(10px, 3cqi, 16px);
+}
+
 .messages {
+  min-width: 0;
   overflow: auto;
+  overflow-x: hidden;
   padding: 16px;
+  padding: clamp(9px, 4cqi, 16px);
   scrollbar-color: #353b36 transparent;
   scrollbar-width: thin;
 }
@@ -418,6 +440,8 @@ button:disabled {
 }
 
 .message {
+  min-width: 0;
+  max-width: 100%;
   margin: 0 0 16px;
 }
 
@@ -432,18 +456,27 @@ button:disabled {
 }
 
 .message-content {
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 10px 12px;
+  padding: clamp(8px, 3cqi, 10px) clamp(8px, 3.5cqi, 12px);
   border: 1px solid #2a2f2b;
   border-radius: 3px 10px 10px 10px;
   color: #cdd3ce;
   background: #181c19;
   font-size: 12px;
+  font-size: clamp(10px, 3.2cqi, 12px);
   line-height: 1.5;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .streamdown-message {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
@@ -498,6 +531,12 @@ button:disabled {
 
 .streamdown-message a {
   color: var(--amber-bright);
+}
+
+.streamdown-message pre,
+.streamdown-message table {
+  max-width: 100%;
+  overflow: auto;
 }
 
 .message.user .message-content {
@@ -590,71 +629,6 @@ button:disabled {
   animation-delay: 240ms;
 }
 
-@container chat (max-width: 340px) {
-  .panel-heading {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
-    height: auto;
-    min-height: 88px;
-    padding: 10px 12px;
-  }
-
-  .conversation-heading h2 {
-    font-size: 12px;
-  }
-
-  .chat-heading-actions {
-    width: 100%;
-  }
-
-  .conversation-action {
-    flex: 1 1 0;
-    justify-content: center;
-  }
-
-  .messages {
-    padding: 12px;
-  }
-
-  .message {
-    margin-bottom: 13px;
-  }
-
-  .message-content {
-    padding: 9px 10px;
-    font-size: 11px;
-  }
-
-  .chat-compose-wrap {
-    padding: 8px 10px 10px;
-  }
-
-  .chat-compose textarea {
-    min-height: 64px;
-  }
-}
-
-@container chat (max-width: 270px) {
-  .conversation-action {
-    gap: 4px;
-    padding-inline: 5px;
-  }
-
-  .conversation-action span {
-    font-size: 8px;
-  }
-
-  .messages {
-    padding: 9px;
-  }
-
-  .message-content {
-    padding: 8px;
-    font-size: 10px;
-  }
-}
-
 @keyframes pulse {
   0%,
   70%,
@@ -670,6 +644,8 @@ button:disabled {
 
 .chat-compose-wrap {
   padding: 10px 12px 12px;
+  padding: clamp(8px, 3cqi, 10px) clamp(9px, 3.5cqi, 12px)
+    clamp(10px, 3.5cqi, 12px);
   border-top: 1px solid var(--line);
 }
 
