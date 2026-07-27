@@ -25,19 +25,4 @@ describe("revision history", () => {
     const branched = commitRevision(undone, "c", "branch");
     expect(branched.future).toEqual([]);
   });
-
-  it("keeps the previous workspace recoverable after starting blank", () => {
-    const current = commitRevision(
-      createHistory("cube(10);"),
-      "cube(20);",
-      "Manual edit",
-    );
-    const blank = commitRevision(
-      current,
-      "// Describe your model in chat.\n",
-      "New blank project",
-    );
-
-    expect(undoRevision(blank).present.source).toBe("cube(20);");
-  });
 });

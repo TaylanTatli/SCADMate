@@ -1,23 +1,38 @@
 import { FormEvent, useState } from "react";
-import { ArrowUp, Bot, KeyRound, Sparkles } from "lucide-react";
-import type { ChatMessage } from "../types";
+import {
+  ArrowLeft,
+  ArrowUp,
+  Bot,
+  History,
+  KeyRound,
+  MessageSquare,
+  Sparkles,
+} from "lucide-react";
+import type { ChatMessage, ProjectSummary } from "../types";
 
 interface ChatPanelProps {
+  activeProjectId: string;
+  projects: ProjectSummary[];
   messages: ChatMessage[];
   isGenerating: boolean;
   configured: boolean;
   onSend: (request: string) => void;
+  onSelectProject: (projectId: string) => void;
   onOpenSettings: () => void;
 }
 
 export function ChatPanel({
+  activeProjectId,
+  projects,
   messages,
   isGenerating,
   configured,
   onSend,
+  onSelectProject,
   onOpenSettings,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -32,16 +47,53 @@ export function ChatPanel({
       <div className="panel-heading">
         <div>
           <span className="eyebrow">AI copilot</span>
-          <h2>Build by describing</h2>
+          <h2>{showHistory ? "Conversations" : "Build by describing"}</h2>
         </div>
-        <span
-          className={`status-dot ${configured ? "ready" : ""}`}
-          title="AI configuration status"
-        />
+        <div className="chat-heading-actions">
+          <button
+            className="conversation-toggle"
+            onClick={() => setShowHistory((visible) => !visible)}
+            aria-expanded={showHistory}
+            title={
+              showHistory ? "Back to current conversation" : "Conversations"
+            }
+          >
+            {showHistory ? <ArrowLeft size={14} /> : <History size={14} />}
+            <span>{showHistory ? "Back" : "Chats"}</span>
+          </button>
+          <span
+            className={`status-dot ${configured ? "ready" : ""}`}
+            title="AI configuration status"
+          />
+        </div>
       </div>
 
       <div className="messages">
-        {messages.length === 0 ? (
+        {showHistory ? (
+          <div className="conversation-list">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                className={`conversation-item ${
+                  project.id === activeProjectId ? "active" : ""
+                }`}
+                onClick={() => onSelectProject(project.id)}
+                disabled={isGenerating}
+              >
+                <MessageSquare size={15} />
+                <span>
+                  <strong>{project.name}</strong>
+                  <small>
+                    {new Intl.DateTimeFormat(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(project.updatedAt)}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : messages.length === 0 ? (
           <div className="chat-empty">
             <div className="bot-mark">
               <Bot size={21} />
@@ -83,7 +135,7 @@ export function ChatPanel({
         )}
       </div>
 
-      <div className="chat-compose-wrap">
+      <div className={`chat-compose-wrap ${showHistory ? "hidden" : ""}`}>
         {!configured && (
           <button className="config-callout" onClick={onOpenSettings}>
             <KeyRound size={14} />

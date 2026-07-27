@@ -76,10 +76,12 @@ export interface RenderFailure {
 export type RenderResponse = RenderSuccess | RenderFailure;
 
 export interface StoredProject {
-  id: "current";
+  id: string;
   name: string;
   source: string;
   messages: ChatMessage[];
   history: RevisionHistory;
   updatedAt: number;
 }
+
+export type ProjectSummary = Pick<StoredProject, "id" | "name" | "updatedAt">;

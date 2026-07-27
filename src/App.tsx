@@ -36,6 +36,11 @@ import {
 } from "./lib/customizer";
 import { downloadBlob, downloadSource } from "./lib/downloads";
 import { formatUnknownError } from "./lib/errors";
+import {
+  NEW_PROJECT_NAME,
+  projectNameFromRequest,
+  upsertProjectSummary,
+} from "./lib/projects";
 import { RenderCoordinator } from "./lib/renderCoordinator";
 import {
   commitRevision,
@@ -45,8 +50,11 @@ import {
 } from "./lib/revisions";
 import { BLANK_SOURCE, hasScadContent } from "./lib/scadSource";
 import {
+  loadActiveProject,
   loadProject,
+  loadProjects,
   loadSettings,
+  saveActiveProjectId,
   saveProject,
   saveSettings,
 } from "./persistence/database";
@@ -54,10 +62,12 @@ import { SAMPLE_SOURCE } from "./sample";
 import type {
   AISettings,
   ChatMessage,
+  ProjectSummary,
   RenderLog,
   RenderResponse,
   RenderStatus,
   RevisionHistory,
+  StoredProject,
 } from "./types";
 
 const DEFAULT_SETTINGS: AISettings = {
@@ -134,6 +144,9 @@ function waitForPreviewPaint(): Promise<void> {
 }
 
 export function App() {
+  const [projectId, setProjectId] = useState<string>(() => crypto.randomUUID());
+  const [projectName, setProjectName] = useState("Sample display enclosure");
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [source, setSource] = useState(SAMPLE_SOURCE);
   const [history, setHistory] = useState<RevisionHistory>(() =>
     createHistory(SAMPLE_SOURCE),
@@ -166,13 +179,48 @@ export function App() {
     settings.provider !== "openai-compatible" ||
     Boolean(settings.endpoint && settings.apiKey && settings.model);
 
+  const createProjectSnapshot = useCallback(
+    (updatedAt = Date.now()): StoredProject => ({
+      id: projectId,
+      name: projectName,
+      source,
+      messages,
+      history,
+      updatedAt,
+    }),
+    [history, messages, projectId, projectName, source],
+  );
+
+  const persistCurrentProject = useCallback(async () => {
+    const project = createProjectSnapshot();
+    if (project.history.present.source !== project.source) {
+      project.history = commitRevision(
+        project.history,
+        project.source,
+        "Manual edits before leaving conversation",
+      );
+    }
+    await saveProject(project);
+    setProjects((current) => upsertProjectSummary(current, project));
+  }, [createProjectSnapshot]);
+
   useEffect(() => {
-    void Promise.all([loadProject(), loadSettings()])
-      .then(([project, storedSettings]) => {
+    void Promise.all([loadActiveProject(), loadProjects(), loadSettings()])
+      .then(([project, storedProjects, storedSettings]) => {
+        setProjects(
+          storedProjects.map(({ id, name, updatedAt }) => ({
+            id,
+            name,
+            updatedAt,
+          })),
+        );
         if (project) {
+          setProjectId(project.id);
+          setProjectName(project.name);
           setSource(project.source);
           setHistory(project.history);
           setMessages(project.messages);
+          void saveActiveProjectId(project.id);
         }
         if (storedSettings) setSettings(storedSettings);
       })
@@ -193,17 +241,16 @@ export function App() {
   useEffect(() => {
     if (!hydrated) return;
     const timer = window.setTimeout(() => {
-      void saveProject({
-        id: "current",
-        name: "SCADmate project",
-        source,
-        messages,
-        history,
-        updatedAt: Date.now(),
+      const project = createProjectSnapshot();
+      void Promise.all([
+        saveProject(project),
+        saveActiveProjectId(project.id),
+      ]).then(() => {
+        setProjects((current) => upsertProjectSummary(current, project));
       });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [history, hydrated, messages, source]);
+  }, [createProjectSnapshot, hydrated]);
 
   const applyRenderResponse = useCallback((response: RenderResponse) => {
     if (!coordinatorRef.current.accepts(response)) return;
@@ -326,6 +373,9 @@ export function App() {
     }
     const userMessage = newMessage("user", request);
     const contextMessages = [...messages, userMessage];
+    if (messages.length === 0 && projectName === NEW_PROJECT_NAME) {
+      setProjectName(projectNameFromRequest(request));
+    }
     setMessages(contextMessages);
     setIsGenerating(true);
     try {
@@ -467,28 +517,52 @@ export function App() {
     setSource(next.present.source);
   };
 
-  const handleNewProject = () => {
-    let nextHistory = history;
-    if (nextHistory.present.source !== source) {
-      nextHistory = commitRevision(
-        nextHistory,
-        source,
-        "Manual edits before new project",
-      );
-    }
-    nextHistory = commitRevision(
-      nextHistory,
-      BLANK_SOURCE,
-      "New blank project",
-    );
-    setHistory(nextHistory);
-    setSource(BLANK_SOURCE);
+  const resetProjectRuntime = (nextSource: string) => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    coordinatorRef.current.begin();
     hasValidStlRef.current = false;
+    lastValidSourceRef.current = nextSource;
     setStl(null);
     setLogs([]);
     setRenderStatus("idle");
     setRenderError(undefined);
     setWorkspaceTab("source");
+  };
+
+  const openProject = async (project: StoredProject) => {
+    setProjectId(project.id);
+    setProjectName(project.name);
+    setSource(project.source);
+    setHistory(project.history);
+    setMessages(project.messages);
+    resetProjectRuntime(project.source);
+    await saveActiveProjectId(project.id);
+  };
+
+  const handleNewProject = async () => {
+    if (isGenerating) return;
+    await persistCurrentProject();
+    const now = Date.now();
+    const project: StoredProject = {
+      id: crypto.randomUUID(),
+      name: NEW_PROJECT_NAME,
+      source: BLANK_SOURCE,
+      messages: [],
+      history: createHistory(BLANK_SOURCE, "New blank project"),
+      updatedAt: now,
+    };
+    await saveProject(project);
+    setProjects((current) => upsertProjectSummary(current, project));
+    await openProject(project);
+  };
+
+  const handleSelectProject = async (nextProjectId: string) => {
+    if (nextProjectId === projectId || isGenerating) return;
+    await persistCurrentProject();
+    const project = await loadProject(nextProjectId);
+    if (project) await openProject(project);
   };
 
   const beginResize =
@@ -546,14 +620,15 @@ export function App() {
         </div>
         <div className="project-name">
           <FileCode2 size={15} />
-          <span>Display enclosure</span>
+          <span>{projectName}</span>
           <i>Saved locally</i>
         </div>
         <nav className="top-actions" aria-label="Project actions">
           <button
             className="toolbar-button"
-            onClick={handleNewProject}
-            title="New blank source (Undo restores the current source)"
+            onClick={() => void handleNewProject()}
+            disabled={isGenerating}
+            title="Start a new conversation and workspace"
           >
             New
           </button>
@@ -615,10 +690,14 @@ export function App() {
 
       <main className="workspace-grid" ref={gridRef} style={layoutStyle}>
         <ChatPanel
+          key={projectId}
+          activeProjectId={projectId}
+          projects={projects}
           messages={messages}
           isGenerating={isGenerating}
           configured={configured}
           onSend={handleChatRequest}
+          onSelectProject={(id) => void handleSelectProject(id)}
           onOpenSettings={() => setSettingsOpen(true)}
         />
         <div className="resize-handle" onPointerDown={beginResize("left")} />
