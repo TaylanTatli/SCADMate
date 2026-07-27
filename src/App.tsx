@@ -30,6 +30,12 @@ import {
 import { downloadBlob, downloadSource } from "./lib/downloads";
 import { formatUnknownError } from "./lib/errors";
 import {
+  ActiveWorkflow,
+  isAbortError,
+  preserveStoppedSource,
+  stoppedRenderStatus,
+} from "./lib/activeWorkflow";
+import {
   NEW_PROJECT_NAME,
   projectNameFromRequest,
   upsertProjectSummary,
@@ -87,6 +93,17 @@ const newMessage = (
   createdAt: Date.now(),
   status,
 });
+
+interface ActiveGenerationRun {
+  workflow: ActiveWorkflow;
+  assistantMessageId: string;
+  candidateSource?: string;
+}
+
+interface PendingRender {
+  requestId: number;
+  resolve: (response: RenderResponse) => void;
+}
 
 function formatCompletionMessage(
   result: Pick<
@@ -212,6 +229,8 @@ export function App() {
   const previewRef = useRef<PreviewPanelHandle>(null);
   const workerRef = useRef<Worker | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const pendingRenderRef = useRef<PendingRender | null>(null);
+  const activeRunRef = useRef<ActiveGenerationRun | null>(null);
   const hasValidStlRef = useRef(false);
   const lastValidSourceRef = useRef(SAMPLE_SOURCE);
   const skipNextDebouncedRenderRef = useRef<string | undefined>(undefined);
@@ -334,10 +353,30 @@ export function App() {
   const renderSource = useCallback(
     (nextSource: string): Promise<RenderResponse> =>
       new Promise((resolve) => {
+        const superseded = pendingRenderRef.current;
+        if (superseded) {
+          superseded.resolve({
+            type: "result",
+            requestId: superseded.requestId,
+            ok: false,
+            error: "Render superseded by a newer request.",
+            stdout: [],
+            stderr: [],
+            elapsedMs: 0,
+          });
+          pendingRenderRef.current = null;
+        }
         workerRef.current?.terminate();
         if (timeoutRef.current !== null)
           window.clearTimeout(timeoutRef.current);
         const requestId = coordinatorRef.current.begin();
+        const settle = (response: RenderResponse) => {
+          if (pendingRenderRef.current?.requestId === requestId) {
+            pendingRenderRef.current = null;
+          }
+          resolve(response);
+        };
+        pendingRenderRef.current = { requestId, resolve };
         setRenderStatus(hasValidStlRef.current ? "rendering" : "initializing");
         setRenderError(undefined);
         setLogs([]);
@@ -354,7 +393,7 @@ export function App() {
             lastValidSourceRef.current = nextSource;
           }
           applyRenderResponse(event.data);
-          resolve(event.data);
+          settle(event.data);
         };
         worker.onerror = (event) => {
           const response: RenderResponse = {
@@ -367,7 +406,7 @@ export function App() {
             elapsedMs: 0,
           };
           applyRenderResponse(response);
-          resolve(response);
+          settle(response);
         };
         worker.postMessage({ type: "render", requestId, source: nextSource });
         timeoutRef.current = window.setTimeout(() => {
@@ -384,11 +423,34 @@ export function App() {
             elapsedMs: 45_000,
           };
           applyRenderResponse(response);
-          resolve(response);
+          settle(response);
         }, 45_000);
       }),
     [applyRenderResponse],
   );
+
+  const cancelActiveRender = useCallback(() => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    coordinatorRef.current.begin();
+    const pending = pendingRenderRef.current;
+    pendingRenderRef.current = null;
+    pending?.resolve({
+      type: "result",
+      requestId: pending.requestId,
+      ok: false,
+      error: "Render stopped.",
+      stdout: [],
+      stderr: [],
+      elapsedMs: 0,
+    });
+    setRenderStatus(stoppedRenderStatus(hasValidStlRef.current));
+    setRenderError(undefined);
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -420,11 +482,55 @@ export function App() {
     [],
   );
 
+  const handleStop = useCallback(() => {
+    const run = activeRunRef.current;
+    if (!run) return;
+
+    run.workflow.stop();
+    activeRunRef.current = null;
+    cancelActiveRender();
+
+    const lastValidSource = lastValidSourceRef.current;
+    setHistory((current) =>
+      preserveStoppedSource(current, run.candidateSource, lastValidSource),
+    );
+    setSource((current) => {
+      skipNextDebouncedRenderRef.current =
+        current === lastValidSource ? undefined : lastValidSource;
+      return lastValidSource;
+    });
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === run.assistantMessageId
+          ? {
+              ...message,
+              content: "Stopped.",
+              status: "done",
+            }
+          : message,
+      ),
+    );
+    setIsGenerating(false);
+  }, [cancelActiveRender]);
+
+  useEffect(() => {
+    const stopOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !activeRunRef.current || settingsOpen) {
+        return;
+      }
+      event.preventDefault();
+      handleStop();
+    };
+    window.addEventListener("keydown", stopOnEscape);
+    return () => window.removeEventListener("keydown", stopOnEscape);
+  }, [handleStop, settingsOpen]);
+
   const handleChatRequest = async (request: string) => {
     if (!configured) {
       setSettingsOpen(true);
       return;
     }
+    if (activeRunRef.current) return;
     const userMessage = newMessage("user", request);
     const contextMessages = [...messages, userMessage];
     const assistantMessage = newMessage(
@@ -432,11 +538,23 @@ export function App() {
       "Generating the OpenSCAD source…",
       "sending",
     );
+    const run: ActiveGenerationRun = {
+      workflow: new ActiveWorkflow(),
+      assistantMessageId: assistantMessage.id,
+    };
+    activeRunRef.current = run;
+    const ensureActive = () => {
+      run.workflow.assertActive();
+      if (activeRunRef.current !== run) {
+        throw new DOMException("Stopped", "AbortError");
+      }
+    };
     const updateAssistantMessage = (
       content: string,
       status: ChatMessage["status"],
       reasoning?: string,
     ) => {
+      if (!run.workflow.active || activeRunRef.current !== run) return;
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantMessage.id
@@ -458,6 +576,7 @@ export function App() {
     try {
       const provider = createAIProvider(settings);
       const generation = await provider.generateScad({
+        signal: run.workflow.signal,
         userRequest: request,
         outputLanguage: settings.outputLanguage,
         currentSource: source.trim() ? source : undefined,
@@ -467,7 +586,9 @@ export function App() {
         renderRequestId: coordinatorRef.current.currentRequestId,
         renderLogs: logs,
       });
+      ensureActive();
       const nextSource = generation.source;
+      run.candidateSource = nextSource;
       updateAssistantMessage(
         generation.message ??
           "Source generated. Compiling the model in OpenSCAD…",
@@ -485,10 +606,13 @@ export function App() {
       }
 
       const correctionResult = await runAutomaticCorrection({
+        signal: run.workflow.signal,
         initialSource: nextSource,
         fallbackSource: lastValidSourceRef.current,
         reviewTimeoutMs: 120_000,
         render: async (candidate): Promise<RenderEvidence> => {
+          ensureActive();
+          run.candidateSource = candidate;
           updateAssistantMessage(
             generation.message ??
               "Compiling and validating the generated geometry…",
@@ -499,6 +623,7 @@ export function App() {
           setSource(candidate);
           setWorkspaceTab("source");
           const response = await renderSource(candidate);
+          ensureActive();
           if (!coordinatorRef.current.accepts(response)) {
             throw new Error(
               "A newer render replaced this automatic-review result.",
@@ -514,7 +639,9 @@ export function App() {
               generation.reasoning,
             );
             await waitForPreviewPaint();
+            ensureActive();
             images = (await previewRef.current?.captureViews()) ?? [];
+            ensureActive();
           } else {
             updateAssistantMessage(
               "Compilation reported a problem. Reviewing the logs for a focused correction…",
@@ -532,6 +659,7 @@ export function App() {
           };
         },
         review: (candidate, evidence) => {
+          ensureActive();
           updateAssistantMessage(
             generation.message ??
               "The model is ready. Running a final check against your request and rendered views…",
@@ -539,6 +667,7 @@ export function App() {
             generation.reasoning,
           );
           return provider.reviewRender({
+            signal: run.workflow.signal,
             userRequest: request,
             outputLanguage: settings.outputLanguage,
             currentSource: candidate,
@@ -551,6 +680,7 @@ export function App() {
           });
         },
       });
+      ensureActive();
 
       correctionResult.validSources.forEach((validSource, index) => {
         nextHistory = commitRevision(
@@ -577,6 +707,13 @@ export function App() {
         generation.reasoning,
       );
     } catch (error) {
+      if (
+        isAbortError(error) ||
+        !run.workflow.active ||
+        activeRunRef.current !== run
+      ) {
+        return;
+      }
       updateAssistantMessage(
         error instanceof Error
           ? error.message
@@ -584,7 +721,11 @@ export function App() {
         "error",
       );
     } finally {
-      setIsGenerating(false);
+      if (activeRunRef.current === run) {
+        run.workflow.complete();
+        activeRunRef.current = null;
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -805,6 +946,7 @@ export function App() {
           configured={configured}
           onNewProject={() => void handleNewProject()}
           onSend={handleChatRequest}
+          onStop={handleStop}
           onSelectProject={(id) => void handleSelectProject(id)}
           onDeleteProject={(id) => void handleDeleteProject(id)}
           onOpenSettings={() => setSettingsOpen(true)}

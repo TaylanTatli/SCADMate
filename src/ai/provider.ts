@@ -6,6 +6,7 @@ import type {
 } from "../types";
 import type { CustomizerVariable } from "../lib/customizer";
 import { stripMarkdownFences } from "../lib/markdown";
+import { isAbortError } from "../lib/activeWorkflow";
 import {
   isDesktopRuntime,
   nativeClaudeGenerate,
@@ -29,6 +30,7 @@ export interface GenerateScadInput {
   renderStatus?: RenderStatus;
   renderRequestId?: number;
   renderLogs?: RenderLog[];
+  signal?: AbortSignal;
 }
 
 export interface VisualReviewInput extends GenerateScadInput {
@@ -94,11 +96,16 @@ export function parseSourceGenerationResponse(
 }
 
 abstract class PromptedProvider implements AIProvider {
-  protected abstract infer(prompt: AssembledPrompt): Promise<InferenceResult>;
+  protected abstract infer(
+    prompt: AssembledPrompt,
+    signal?: AbortSignal,
+  ): Promise<InferenceResult>;
 
   async generateScad(input: GenerateScadInput): Promise<GenerateScadResult> {
+    input.signal?.throwIfAborted();
     const prompt = assembleAgentPrompt(input);
-    const result = await this.infer(prompt);
+    const result = await this.infer(prompt, input.signal);
+    input.signal?.throwIfAborted();
     const parsed = parseSourceGenerationResponse(result.content);
     const source = parsed.source;
     if (!source) {
@@ -115,8 +122,10 @@ abstract class PromptedProvider implements AIProvider {
   }
 
   async reviewRender(input: VisualReviewInput): Promise<VisualReviewResult> {
+    input.signal?.throwIfAborted();
     const prompt = assembleAgentPrompt({ ...input, task: "visual-review" });
-    const result = await this.infer(prompt);
+    const result = await this.infer(prompt, input.signal);
+    input.signal?.throwIfAborted();
     return parseVisualReviewResponse(result.content);
   }
 }
@@ -126,7 +135,11 @@ export class OpenAICompatibleProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
+  protected async infer(
+    prompt: AssembledPrompt,
+    signal?: AbortSignal,
+  ): Promise<InferenceResult> {
+    signal?.throwIfAborted();
     const { endpoint, apiKey, model } = this.settings;
     if (!endpoint.trim() || !apiKey.trim() || !model.trim()) {
       throw new Error(
@@ -136,15 +149,21 @@ export class OpenAICompatibleProvider extends PromptedProvider {
 
     if (isDesktopRuntime()) {
       try {
-        return await nativeCompatibleGenerate({
-          endpoint,
-          apiKey,
-          model,
-          systemPrompt: prompt.systemPrompt,
-          userPrompt: prompt.userPrompt,
-          images: prompt.images,
-        });
+        const result = await nativeCompatibleGenerate(
+          {
+            endpoint,
+            apiKey,
+            model,
+            systemPrompt: prompt.systemPrompt,
+            userPrompt: prompt.userPrompt,
+            images: prompt.images,
+          },
+          signal,
+        );
+        signal?.throwIfAborted();
+        return result;
       } catch (error) {
+        if (isAbortError(error)) throw error;
         throw new Error(
           error instanceof Error ? error.message : String(error),
           { cause: error },
@@ -179,8 +198,10 @@ export class OpenAICompatibleProvider extends PromptedProvider {
             { role: "user", content: userContent },
           ],
         }),
+        signal,
       });
     } catch (error) {
+      if (isAbortError(error)) throw error;
       throw new Error(
         `AI request failed. Check the endpoint, network connection, and browser CORS policy. ${
           error instanceof Error ? error.message : ""
@@ -220,14 +241,18 @@ export class CodexProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
+  protected async infer(
+    prompt: AssembledPrompt,
+    signal?: AbortSignal,
+  ): Promise<InferenceResult> {
+    signal?.throwIfAborted();
     if (!isDesktopRuntime()) {
       throw new Error(
         "ChatGPT subscription access is available in the SCADmate desktop app.",
       );
     }
     try {
-      return await nativeCodexGenerate({
+      const result = await nativeCodexGenerate({
         systemPrompt: prompt.systemPrompt,
         userPrompt: prompt.userPrompt,
         images: prompt.images,
@@ -238,7 +263,10 @@ export class CodexProvider extends PromptedProvider {
           ? { executable: this.settings.codexExecutable.trim() }
           : {}),
       });
+      signal?.throwIfAborted();
+      return result;
     } catch (error) {
+      if (isAbortError(error)) throw error;
       throw new Error(
         error instanceof Error
           ? error.message
@@ -254,14 +282,18 @@ export class ClaudeCodeProvider extends PromptedProvider {
     super();
   }
 
-  protected async infer(prompt: AssembledPrompt): Promise<InferenceResult> {
+  protected async infer(
+    prompt: AssembledPrompt,
+    signal?: AbortSignal,
+  ): Promise<InferenceResult> {
+    signal?.throwIfAborted();
     if (!isDesktopRuntime()) {
       throw new Error(
         "Claude subscription access is available in the SCADmate desktop app.",
       );
     }
     try {
-      return await nativeClaudeGenerate({
+      const result = await nativeClaudeGenerate({
         systemPrompt: prompt.systemPrompt,
         userPrompt: prompt.userPrompt,
         images: prompt.images,
@@ -272,7 +304,10 @@ export class ClaudeCodeProvider extends PromptedProvider {
           ? { executable: this.settings.claudeExecutable.trim() }
           : {}),
       });
+      signal?.throwIfAborted();
+      return result;
     } catch (error) {
+      if (isAbortError(error)) throw error;
       throw new Error(error instanceof Error ? error.message : String(error), {
         cause: error,
       });

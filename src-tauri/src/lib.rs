@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -8,11 +10,19 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+use tokio::sync::oneshot;
 
 const INFERENCE_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_RENDER_IMAGES: usize = 7;
 const MAX_RENDER_IMAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_REASONING_CHARS: usize = 12_000;
+
+type CancellationSender = oneshot::Sender<()>;
+static AI_CANCELLATIONS: OnceLock<Mutex<HashMap<String, CancellationSender>>> = OnceLock::new();
+
+fn ai_cancellations() -> &'static Mutex<HashMap<String, CancellationSender>> {
+    AI_CANCELLATIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +53,7 @@ struct InferenceOutput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CompatibleInferenceInput {
+    request_id: String,
     endpoint: String,
     api_key: String,
     model: String,
@@ -50,6 +61,16 @@ struct CompatibleInferenceInput {
     user_prompt: String,
     #[serde(default)]
     images: Vec<RenderedImage>,
+}
+
+#[tauri::command]
+fn cancel_ai_request(request_id: String) -> bool {
+    ai_cancellations()
+        .lock()
+        .ok()
+        .and_then(|mut cancellations| cancellations.remove(&request_id))
+        .map(|sender| sender.send(()).is_ok())
+        .unwrap_or(false)
 }
 
 #[derive(Debug, Serialize)]
@@ -517,18 +538,36 @@ async fn compatible_generate(input: CompatibleInferenceInput) -> Result<Inferenc
         .timeout(INFERENCE_TIMEOUT)
         .build()
         .map_err(|error| format!("AI client initialization failed: {error}"))?;
-    let response = client
-        .post(input.endpoint.trim())
-        .bearer_auth(input.api_key.trim())
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|error| format!("AI request failed: {error}"))?;
-    let status = response.status();
-    let result = response
-        .json::<CompatibleResponse>()
-        .await
-        .map_err(|error| format!("AI endpoint returned an unreadable response: {error}"))?;
+    let request_id = input.request_id;
+    let (cancel_sender, cancel_receiver) = oneshot::channel();
+    if let Ok(mut cancellations) = ai_cancellations().lock() {
+        if let Some(previous) = cancellations.insert(request_id.clone(), cancel_sender) {
+            let _ = previous.send(());
+        }
+    }
+    let request = async {
+        let response = client
+            .post(input.endpoint.trim())
+            .bearer_auth(input.api_key.trim())
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|error| format!("AI request failed: {error}"))?;
+        let status = response.status();
+        let result = response
+            .json::<CompatibleResponse>()
+            .await
+            .map_err(|error| format!("AI endpoint returned an unreadable response: {error}"))?;
+        Ok::<_, String>((status, result))
+    };
+    let request_result = tokio::select! {
+        result = request => result,
+        _ = cancel_receiver => Err("Stopped.".to_string()),
+    };
+    if let Ok(mut cancellations) = ai_cancellations().lock() {
+        cancellations.remove(&request_id);
+    }
+    let (status, result) = request_result?;
 
     if !status.is_success() {
         return Err(result
@@ -601,6 +640,7 @@ pub fn run() {
             claude_login,
             claude_generate,
             compatible_generate,
+            cancel_ai_request,
             save_api_key,
             load_api_key
         ])

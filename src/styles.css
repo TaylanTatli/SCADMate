@@ -732,6 +732,28 @@ button:disabled {
   cursor: pointer;
 }
 
+.stop-button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #8d4b43;
+  border-radius: 7px;
+  color: #f4d4cf;
+  background: #512824;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stop-button:hover {
+  background: #67312c;
+}
+
 .chat-compose-wrap > small {
   display: block;
   margin-top: 6px;

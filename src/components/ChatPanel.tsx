@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Plus,
   Sparkles,
+  Square,
   Trash2,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
@@ -23,6 +24,7 @@ interface ChatPanelProps {
   configured: boolean;
   onNewProject: () => void;
   onSend: (request: string) => void;
+  onStop: () => void;
   onSelectProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onOpenSettings: () => void;
@@ -37,6 +39,7 @@ export function ChatPanel({
   configured,
   onNewProject,
   onSend,
+  onStop,
   onSelectProject,
   onDeleteProject,
   onOpenSettings,
@@ -53,7 +56,16 @@ export function ChatPanel({
   };
 
   return (
-    <section className="panel chat-panel" aria-label="AI chat">
+    <section
+      className="panel chat-panel"
+      aria-label="AI chat"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && showHistory) {
+          event.stopPropagation();
+          setShowHistory(false);
+        }
+      }}
+    >
       <div className="panel-heading">
         <div className="conversation-heading">
           <span className="eyebrow">
@@ -207,16 +219,33 @@ export function ChatPanel({
             rows={3}
             aria-label="Model request"
           />
-          <button
-            type="submit"
-            className="send-button"
-            disabled={!draft.trim() || isGenerating}
-            aria-label="Send request"
-          >
-            <ArrowUp size={18} strokeWidth={2.5} />
-          </button>
+          {isGenerating ? (
+            <button
+              type="button"
+              className="stop-button"
+              onClick={onStop}
+              aria-label="Stop active run"
+              title="Stop active run (Escape)"
+            >
+              <Square size={11} fill="currentColor" />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="send-button"
+              disabled={!draft.trim()}
+              aria-label="Send request"
+            >
+              <ArrowUp size={18} strokeWidth={2.5} />
+            </button>
+          )}
         </form>
-        <small>Enter to send · Shift + Enter for a new line</small>
+        <small>
+          {isGenerating
+            ? "Escape to stop"
+            : "Enter to send · Shift + Enter for a new line"}
+        </small>
       </div>
     </section>
   );

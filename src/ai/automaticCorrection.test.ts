@@ -213,4 +213,34 @@ describe("automatic visual correction", () => {
     expect(result.correctionAttempts).toBe(1);
     expect(render).toHaveBeenCalledTimes(2);
   });
+
+  it("aborts before starting an automatic correction retry", async () => {
+    const controller = new AbortController();
+    const render = vi.fn().mockResolvedValue(evidence(true, 1));
+    const review = vi.fn().mockImplementation(async () => {
+      controller.abort();
+      return {
+        status: "revise" as const,
+        scores: goodScores,
+        decisionRationale: "A correction would normally be required.",
+        blockingDefects: ["A visible defect remains."],
+        observations: ["A visible defect remains."],
+        source: "corrected();",
+        uncertainties: [],
+      };
+    });
+
+    await expect(
+      runAutomaticCorrection({
+        initialSource: "candidate();",
+        fallbackSource: "previous_valid();",
+        render,
+        review,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(1);
+  });
 });

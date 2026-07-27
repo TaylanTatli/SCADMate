@@ -1,4 +1,5 @@
 import type { RenderLog, RenderStatus } from "../types";
+import { createAbortError, isAbortError } from "../lib/activeWorkflow";
 import {
   visualReviewHasBlockingDefects,
   type RenderedView,
@@ -27,6 +28,7 @@ export interface AutomaticCorrectionInput {
   ) => Promise<VisualReviewResult>;
   maxCorrections?: number;
   reviewTimeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface AutomaticCorrectionResult {
@@ -47,7 +49,9 @@ export async function runAutomaticCorrection({
   review,
   maxCorrections = MAX_AUTOMATIC_CORRECTIONS,
   reviewTimeoutMs = DEFAULT_VISUAL_REVIEW_TIMEOUT_MS,
+  signal,
 }: AutomaticCorrectionInput): Promise<AutomaticCorrectionResult> {
+  signal?.throwIfAborted();
   const limit = Math.max(
     0,
     Math.min(maxCorrections, MAX_AUTOMATIC_CORRECTIONS),
@@ -65,31 +69,48 @@ export async function runAutomaticCorrection({
     evidence: RenderEvidence,
   ): Promise<VisualReviewResult> =>
     new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(createAbortError());
+        return;
+      }
+      const abort = () => {
+        globalThis.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abort);
+        reject(createAbortError());
+      };
       const timeout = globalThis.setTimeout(
-        () =>
+        () => {
+          signal?.removeEventListener("abort", abort);
           reject(
             new Error(
               "The visual review exceeded its time limit. The compiled model remains available.",
             ),
-          ),
+          );
+        },
         Math.max(1, reviewTimeoutMs),
       );
+      signal?.addEventListener("abort", abort, { once: true });
       void review(source, evidence).then(
         (result) => {
           globalThis.clearTimeout(timeout);
+          signal?.removeEventListener("abort", abort);
           resolve(result);
         },
         (error: unknown) => {
           globalThis.clearTimeout(timeout);
+          signal?.removeEventListener("abort", abort);
           reject(error instanceof Error ? error : new Error(String(error)));
         },
       );
     });
 
   while (true) {
+    signal?.throwIfAborted();
     try {
       latestEvidence = await render(candidate);
+      signal?.throwIfAborted();
     } catch (error) {
+      if (isAbortError(error)) throw error;
       uncertainties.push(
         `Automatic render validation failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -111,7 +132,9 @@ export async function runAutomaticCorrection({
     let decision: VisualReviewResult;
     try {
       decision = await reviewWithTimeout(candidate, latestEvidence);
+      signal?.throwIfAborted();
     } catch (error) {
+      if (isAbortError(error)) throw error;
       uncertainties.push(
         `Automatic visual review failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -156,6 +179,7 @@ export async function runAutomaticCorrection({
       decision.source &&
       corrections < limit
     ) {
+      signal?.throwIfAborted();
       corrections += 1;
       candidate = decision.source;
       continue;

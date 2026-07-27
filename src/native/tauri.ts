@@ -64,15 +64,43 @@ export async function nativeClaudeGenerate(
   return invoke<NativeInferenceResult>("claude_generate", { input });
 }
 
-export async function nativeCompatibleGenerate(input: {
-  endpoint: string;
-  apiKey: string;
-  model: string;
-  systemPrompt: string;
-  userPrompt: string;
-  images: NativeRenderedView[];
-}): Promise<NativeInferenceResult> {
-  return invoke<NativeInferenceResult>("compatible_generate", { input });
+export async function nativeCompatibleGenerate(
+  input: {
+    endpoint: string;
+    apiKey: string;
+    model: string;
+    systemPrompt: string;
+    userPrompt: string;
+    images: NativeRenderedView[];
+  },
+  signal?: AbortSignal,
+): Promise<NativeInferenceResult> {
+  signal?.throwIfAborted();
+  const requestId = crypto.randomUUID();
+  const invocation = invoke<NativeInferenceResult>("compatible_generate", {
+    input: { ...input, requestId },
+  });
+  if (!signal) return invocation;
+
+  return new Promise((resolve, reject) => {
+    const stop = () => {
+      void invoke("cancel_ai_request", { requestId });
+      reject(new DOMException("Stopped", "AbortError"));
+    };
+    signal.addEventListener("abort", stop, { once: true });
+    void invocation.then(
+      (result) => {
+        signal.removeEventListener("abort", stop);
+        if (signal.aborted) reject(new DOMException("Stopped", "AbortError"));
+        else resolve(result);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", stop);
+        if (signal.aborted) reject(new DOMException("Stopped", "AbortError"));
+        else reject(error);
+      },
+    );
+  });
 }
 
 export async function nativeLoadApiKey(): Promise<string | null> {
