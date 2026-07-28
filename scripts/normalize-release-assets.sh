@@ -20,7 +20,7 @@ rename_one() {
   local matches=()
 
   mapfile -d '' matches < <(
-    find "$asset_dir" -maxdepth 1 -type f -name "$pattern" -print0
+    find "$asset_dir" -type f -name "$pattern" -print0
   )
   if [[ ${#matches[@]} -ne 1 ]]; then
     echo "Expected one asset matching '$pattern', found ${#matches[@]}." >&2
