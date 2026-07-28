@@ -793,6 +793,34 @@ button:disabled {
   color: #dfe4df;
 }
 
+.editor-search-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.workspace-tabs .editor-search-actions button {
+  height: 29px;
+  align-self: center;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 9px;
+}
+
+.workspace-tabs .editor-search-actions button:hover:not(:disabled) {
+  border-color: #343a35;
+  color: #dfe4df;
+  background: #1a1e1b;
+}
+
+.workspace-tabs .editor-search-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .tab-count {
   min-width: 16px;
   padding: 1px 4px;
