@@ -25,6 +25,37 @@ const configureEditor: OnMount = (_editor, monaco) => {
       .some((language) => language.id === "openscad")
   ) {
     monaco.languages.register({ id: "openscad" });
+    monaco.languages.setLanguageConfiguration("openscad", {
+      comments: {
+        lineComment: "//",
+        blockComment: ["/*", "*/"],
+      },
+      brackets: [
+        ["{", "}"],
+        ["[", "]"],
+        ["(", ")"],
+      ],
+      autoClosingPairs: [
+        { open: "{", close: "}" },
+        { open: "[", close: "]" },
+        { open: "(", close: ")" },
+        { open: '"', close: '"', notIn: ["string", "comment"] },
+        { open: "/*", close: "*/", notIn: ["string"] },
+      ],
+      surroundingPairs: [
+        { open: "{", close: "}" },
+        { open: "[", close: "]" },
+        { open: "(", close: ")" },
+        { open: '"', close: '"' },
+      ],
+      wordPattern: /(-?\d*\.\d\w*)|([^\W\d][\w$]*)/,
+      folding: {
+        markers: {
+          start: /^\s*\/\/\s*#?region\b/,
+          end: /^\s*\/\/\s*#?endregion\b/,
+        },
+      },
+    });
     monaco.languages.setMonarchTokensProvider("openscad", {
       keywords: [
         "module",
