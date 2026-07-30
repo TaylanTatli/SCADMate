@@ -1,8 +1,11 @@
-# SCADmate
+# SCADMate
 
 SCADmate is a lightweight Tauri desktop workspace for AI-assisted OpenSCAD modeling. Describe a
 printable model in chat, receive a complete `.scad` source file, compile it locally with OpenSCAD
 WebAssembly, and inspect or export the resulting STL.
+
+<img width="1200" height="630" alt="og" src="https://github.com/user-attachments/assets/f60b1ed3-b823-4705-8053-947fa252ea33" />
+
 
 ## MVP capabilities
 
