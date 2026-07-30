@@ -179,8 +179,9 @@ button:disabled {
 .workspace-grid {
   display: grid;
   grid-template-columns:
-    minmax(300px, var(--left-width)) 5px minmax(320px, 1fr) 5px
-    minmax(320px, var(--right-width));
+    minmax(300px, var(--left-fr)) 5px
+    minmax(320px, var(--center-fr)) 5px
+    minmax(320px, var(--right-fr));
   min-width: 0;
   min-height: 0;
   padding: 7px 8px;
@@ -297,6 +298,7 @@ button:disabled {
 
 .chat-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
@@ -793,8 +795,8 @@ button:disabled {
 
 .workspace-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 43px minmax(0, 1fr);
-  container-type: inline-size;
 }
 
 .workspace-tabs {
@@ -826,49 +828,6 @@ button:disabled {
 .workspace-tabs button.active {
   border-color: var(--amber);
   color: #dfe4df;
-}
-
-.editor-search-actions {
-  display: flex;
-  flex: 0 1 auto;
-  min-width: 0;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.workspace-tabs .editor-search-actions button {
-  flex: 0 0 auto;
-  height: 29px;
-  align-self: center;
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 9px;
-}
-
-@container (max-width: 480px) {
-  .workspace-tabs .workspace-tab-label,
-  .editor-search-actions button span {
-    display: none;
-  }
-
-  .workspace-tabs > button,
-  .workspace-tabs .editor-search-actions button {
-    padding-right: 7px;
-    padding-left: 7px;
-  }
-}
-
-.workspace-tabs .editor-search-actions button:hover:not(:disabled) {
-  border-color: #343a35;
-  color: #dfe4df;
-  background: #1a1e1b;
-}
-
-.workspace-tabs .editor-search-actions button:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 
 .tab-count {
@@ -992,6 +951,7 @@ button:disabled {
 
 .preview-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 66px minmax(0, 1fr) 34px;
 }
 

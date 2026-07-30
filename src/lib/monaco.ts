@@ -1,5 +1,6 @@
 import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
+import "monaco-editor/esm/vs/base/browser/ui/codicons/codiconStyles.js";
 import "monaco-editor/esm/vs/editor/contrib/bracketMatching/browser/bracketMatching.js";
 import "monaco-editor/esm/vs/editor/contrib/comment/browser/comment.js";
 import "monaco-editor/esm/vs/editor/contrib/contextmenu/browser/contextmenu.js";

@@ -864,8 +864,9 @@ export function App() {
     };
 
   const layoutStyle = {
-    "--left-width": `${leftWidth}%`,
-    "--right-width": `${rightWidth}%`,
+    "--left-fr": `${leftWidth}fr`,
+    "--center-fr": `${Math.max(1, 100 - leftWidth - rightWidth)}fr`,
+    "--right-fr": `${rightWidth}fr`,
   } as CSSProperties;
 
   return (

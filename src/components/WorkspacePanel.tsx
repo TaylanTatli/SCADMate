@@ -1,6 +1,5 @@
 import Editor, { type OnMount } from "@monaco-editor/react";
-import { useRef } from "react";
-import { Braces, Search, SlidersHorizontal, TextSearch } from "lucide-react";
+import { Braces, SlidersHorizontal } from "lucide-react";
 import type { CustomizerVariable } from "../lib/customizer";
 import { CustomizerView } from "./CustomizerView";
 
@@ -100,18 +99,6 @@ export function WorkspacePanel({
   onTabChange,
   onVariableChange,
 }: WorkspacePanelProps) {
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-  const mountEditor: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    configureEditor(editor, monaco);
-  };
-  const runEditorAction = (actionId: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    void editor.getAction(actionId)?.run();
-  };
-
   return (
     <section className="panel workspace-panel" aria-label="OpenSCAD workspace">
       <div className="workspace-tabs" role="tablist">
@@ -122,7 +109,7 @@ export function WorkspacePanel({
           onClick={() => onTabChange("source")}
         >
           <Braces size={15} />
-          <span className="workspace-tab-label">Source</span>
+          <span>Source</span>
         </button>
         <button
           role="tab"
@@ -131,31 +118,9 @@ export function WorkspacePanel({
           onClick={() => onTabChange("customizer")}
         >
           <SlidersHorizontal size={15} />
-          <span className="workspace-tab-label">Customizer</span>
+          <span>Customizer</span>
           <span className="tab-count">{variables.length}</span>
         </button>
-        <div className="editor-search-actions" aria-label="Source search">
-          <button
-            type="button"
-            onClick={() => runEditorAction("actions.find")}
-            disabled={tab !== "source"}
-            title="Find (Ctrl+F)"
-          >
-            <Search size={13} />
-            <span>Find</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              runEditorAction("editor.action.startFindReplaceAction")
-            }
-            disabled={tab !== "source"}
-            title="Find and replace (Ctrl+H)"
-          >
-            <TextSearch size={13} />
-            <span>Replace</span>
-          </button>
-        </div>
       </div>
       <div className="workspace-content">
         {tab === "source" ? (
@@ -164,7 +129,7 @@ export function WorkspacePanel({
             language="openscad"
             value={source}
             onChange={(value) => onSourceChange(value ?? "")}
-            onMount={mountEditor}
+            onMount={configureEditor}
             theme="vs-dark"
             options={{
               automaticLayout: true,
