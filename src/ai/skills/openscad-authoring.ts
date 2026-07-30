@@ -14,7 +14,7 @@ export const MESH_FORMAT_GUIDANCE = `SCAD, STL, and 3MF boundaries:
 
 - The complete SCAD file is SCADmate's editable parametric source of truth.
 - STL is a triangle-mesh output or reference asset; it does not preserve OpenSCAD parameters or design intent.
-- Imported STL may be used as a reference or boolean input only when browser-WASM support and performance permit it.
+- Imported STL may be used as a reference or boolean input only when the embedded WASM runtime supports it with reasonable performance.
 - Never imply that an arbitrary STL can be reliably reconstructed as clean parametric SCAD.
 - 3MF may contain multiple objects and metadata, but it does not replace the SCAD source-of-truth workflow in this MVP.
 - Do not turn the task into general mesh editing.`;

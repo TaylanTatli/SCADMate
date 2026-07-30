@@ -86,4 +86,4 @@ The following repositories were studied as design references:
 
 No reference text, shell command workflow, source code, or filename-based revision scheme was
 copied. Their local OpenSCAD/CLI assumptions were translated into original instructions for
-SCADmate's browser-based WASM renderer, Three.js preview, and existing immutable revision history.
+SCADmate's embedded WASM renderer, Three.js preview, and existing immutable revision history.

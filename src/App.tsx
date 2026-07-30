@@ -417,7 +417,7 @@ export function App() {
             type: "result",
             requestId,
             ok: false,
-            error: "OpenSCAD render exceeded the 45 second browser limit.",
+            error: "OpenSCAD render exceeded the 45 second time limit.",
             stdout: [],
             stderr: [],
             elapsedMs: 45_000,
