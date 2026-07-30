@@ -122,7 +122,7 @@ export function WorkspacePanel({
           onClick={() => onTabChange("source")}
         >
           <Braces size={15} />
-          Source
+          <span className="workspace-tab-label">Source</span>
         </button>
         <button
           role="tab"
@@ -131,7 +131,7 @@ export function WorkspacePanel({
           onClick={() => onTabChange("customizer")}
         >
           <SlidersHorizontal size={15} />
-          Customizer
+          <span className="workspace-tab-label">Customizer</span>
           <span className="tab-count">{variables.length}</span>
         </button>
         <div className="editor-search-actions" aria-label="Source search">
@@ -142,7 +142,7 @@ export function WorkspacePanel({
             title="Find (Ctrl+F)"
           >
             <Search size={13} />
-            Find
+            <span>Find</span>
           </button>
           <button
             type="button"
@@ -153,7 +153,7 @@ export function WorkspacePanel({
             title="Find and replace (Ctrl+H)"
           >
             <TextSearch size={13} />
-            Replace
+            <span>Replace</span>
           </button>
         </div>
       </div>

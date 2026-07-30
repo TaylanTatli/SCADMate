@@ -1,4 +1,9 @@
-import { FormEvent, useState } from "react";
+import {
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowLeft,
   ArrowUp,
@@ -44,8 +49,36 @@ export function ChatPanel({
   onDeleteProject,
   onOpenSettings,
 }: ChatPanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
   const [draft, setDraft] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(74);
+
+  const clampComposerHeight = (height: number) => {
+    const panelHeight = panelRef.current?.clientHeight ?? window.innerHeight;
+    return Math.round(
+      Math.max(74, Math.min(height, Math.min(360, panelHeight * 0.55))),
+    );
+  };
+
+  const beginComposerResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = composerHeight;
+    const resize = (pointerEvent: PointerEvent) => {
+      setComposerHeight(
+        clampComposerHeight(startHeight + startY - pointerEvent.clientY),
+      );
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -57,6 +90,7 @@ export function ChatPanel({
 
   return (
     <section
+      ref={panelRef}
       className="panel chat-panel"
       aria-label="AI chat"
       onKeyDown={(event) => {
@@ -206,7 +240,27 @@ export function ChatPanel({
           </button>
         )}
         <form className="chat-compose" onSubmit={submit}>
+          <button
+            type="button"
+            className="composer-resize-handle"
+            onPointerDown={beginComposerResize}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                event.preventDefault();
+                setComposerHeight((height) =>
+                  clampComposerHeight(
+                    height + (event.key === "ArrowUp" ? 28 : -28),
+                  ),
+                );
+              }
+            }}
+            aria-label="Resize message input"
+            title="Drag upward to enlarge the message input"
+          >
+            <span />
+          </button>
           <textarea
+            style={{ height: composerHeight }}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
